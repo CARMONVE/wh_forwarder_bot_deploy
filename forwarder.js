@@ -1,56 +1,63 @@
-// ✅ forwarder.js — versión compatible con Node 22 / Google Cloud Shell
-import pkg from 'whatsapp-web.js';
+import express from "express";
+import fs from "fs";
+import XLSX from "xlsx";
+import qrcode from "qrcode-terminal";
+import pkg from "whatsapp-web.js";
+
 const { Client, LocalAuth } = pkg;
-import qrcode from 'qrcode-terminal';
-import express from 'express';
-import fs from 'fs';
-import XLSX from 'xlsx';
 
-// 🌐 Servidor básico Express
+// --- CONFIGURACIÓN DEL SERVIDOR EXPRESS ---
 const app = express();
-app.get('/', (req, res) => {
-  res.send('✅ Servidor activo: Bot de WhatsApp corriendo en Google Cloud Shell');
-});
-app.listen(3000, () => console.log('🌐 Web server escuchando en puerto 3000'));
+const PORT = process.env.PORT || 8080;
 
-// 📂 Cargar archivo Excel
-const excelPath = './LISTA.xlsx';
-let data = [];
-if (fs.existsSync(excelPath)) {
-  const workbook = XLSX.readFile(excelPath);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  data = XLSX.utils.sheet_to_json(sheet);
+app.get("/", (req, res) => {
+  res.send("✅ Bot de WhatsApp activo en Google Cloud Shell");
+});
+
+app.listen(PORT, () => console.log(`🌐 Servidor web activo en el puerto ${PORT}`));
+
+// --- CARGA DE EXCEL ---
+const EXCEL_PATH = "./LISTA.xlsx";
+
+function cargarExcel() {
+  if (!fs.existsSync(EXCEL_PATH)) {
+    console.log("❌ No se encontró el archivo LISTA.xlsx");
+    return [];
+  }
+
+  const workbook = XLSX.readFile(EXCEL_PATH);
+  const hoja = workbook.Sheets[workbook.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json(hoja);
   console.log(`📋 Se cargaron ${data.length} filas desde ${workbook.SheetNames[0]}`);
-} else {
-  console.log('⚠️ No se encontró LISTA.xlsx en la carpeta del proyecto.');
+  return data;
 }
 
-// 🤖 Inicializar cliente WhatsApp
+// --- CONFIGURAR WHATSAPP ---
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-extensions',
-      '--disable-dev-shm-usage',
-      '--single-process',
-    ],
-  },
+    executablePath: "/usr/bin/chromium",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  }
 });
 
-client.on('qr', (qr) => {
-  console.log('📱 Escanea este código QR para iniciar sesión:');
+client.on("qr", qr => {
+  console.log("📱 Escanea este código QR para iniciar sesión:");
   qrcode.generate(qr, { small: true });
 });
 
-client.on('ready', () => {
-  console.log('✅ WhatsApp conectado y listo.');
-});
+client.on("ready", () => {
+  console.log("🤖 WhatsApp listo para enviar mensajes");
+  const data = cargarExcel();
 
-client.on('disconnected', (reason) => {
-  console.log('⚠️ Cliente desconectado:', reason);
+  for (const row of data) {
+    if (row.Numero && row.Mensaje) {
+      const numero = `${row.Numero}@c.us`;
+      client.sendMessage(numero, row.Mensaje)
+        .then(() => console.log(`✅ Mensaje enviado a ${row.Numero}`))
+        .catch(err => console.error(`❌ Error al enviar a ${row.Numero}:`, err.message));
+    }
+  }
 });
 
 client.initialize();
