@@ -1,0 +1,16 @@
+{
+  "name": "wh_forwarder_replit",
+  "version": "1.0.0",
+  "main": "forwarder.js",
+  "scripts": {
+    "start": "node forwarder.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.20.0",
+    "puppeteer": "^20.8.1",
+    "qrcode": "^1.5.4",
+    "express": "^4.18.2",
+    "xlsx": "^0.18.5"
+  }
+}
+
