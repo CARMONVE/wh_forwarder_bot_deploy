@@ -1,89 +1,84 @@
-// === WHATSAPP FORWARDER BOT - Google Cloud Shell Version ===
-// Compatible con Puppeteer en entorno headless, sin dependencias gráficas adicionales
+// forwarder.js - versión estable para Cloud Shell
+import express from "express";
+import { Client, LocalAuth } from "whatsapp-web.js";
+import qrcode from "qrcode-terminal";
+import XLSX from "xlsx";
+import fs from "fs";
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const express = require('express');
-const xlsx = require('xlsx');
-const fs = require('fs');
-const path = require('path');
-
-// === CONFIGURACIÓN SERVIDOR WEB (para mantener vivo el proceso) ===
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.get('/', (_, res) => res.send('✅ Bot WhatsApp activo en Google Cloud Shell'));
-app.listen(PORT, () => console.log(`🌐 Web server listening on ${PORT}`));
 
-// === RUTAS DE ARCHIVOS ===
-const configPath = path.join(__dirname, 'config.json');
-const excelPath = path.join(__dirname, 'LISTA.xlsx');
-
-// === VALIDACIÓN DE ARCHIVOS ===
-if (!fs.existsSync(configPath)) {
-  console.error('❌ No se encontró config.json');
-  process.exit(1);
-}
-if (!fs.existsSync(excelPath)) {
-  console.error('❌ No se encontró LISTA.xlsx');
-  process.exit(1);
+// --- Prevención de bloqueo del puerto ---
+try {
+  const server = app.listen(PORT, () => {
+    console.log(`🌐 Servidor web escuchando en el puerto ${PORT}`);
+  });
+  process.on("SIGTERM", () => server.close());
+  process.on("SIGINT", () => server.close());
+} catch (err) {
+  console.error("⚠️ Error iniciando servidor:", err.message);
 }
 
-// === CARGA DE CONFIGURACIÓN Y DATOS DE EXCEL ===
-const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-const workbook = xlsx.readFile(excelPath);
-const sheetName = workbook.SheetNames[0];
-const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
-console.log(`📋 Se cargaron ${data.length} filas desde ${sheetName}`);
+// --- Cargar configuración ---
+const configPath = "./config.json";
+let config = { excelPath: "./LISTA.xlsx" };
+if (fs.existsSync(configPath)) {
+  config = JSON.parse(fs.readFileSync(configPath));
+  console.log("⚙️ Configuración cargada correctamente.");
+} else {
+  console.log("⚠️ No se encontró config.json, usando valores por defecto.");
+}
 
-// === CONFIGURACIÓN DEL CLIENTE WHATSAPP ===
+// --- Leer Excel ---
+function cargarDatosExcel() {
+  try {
+    const wb = XLSX.readFile(config.excelPath);
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+    console.log(`📋 Se cargaron ${data.length} filas desde ${config.excelPath}`);
+    return data;
+  } catch (err) {
+    console.error("❌ Error leyendo el archivo Excel:", err.message);
+    return [];
+  }
+}
+
+// --- Inicializar WhatsApp ---
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-    executablePath: '/usr/bin/chromium-browser', // compatible con Cloud Shell
     args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-gpu',
-      '--disable-dev-shm-usage',
-      '--disable-extensions',
-      '--disable-software-rasterizer'
-    ]
-  }
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-extensions",
+    ],
+  },
 });
 
-// === EVENTOS DEL CLIENTE ===
-
-// Mostrar QR en consola
-client.on('qr', qr => {
-  console.log('📱 Escanea este código QR desde tu WhatsApp (Dispositivos vinculados):');
-  console.log(qr);
+client.on("qr", (qr) => {
+  console.log("🔹 Escanea este código QR en WhatsApp:");
+  qrcode.generate(qr, { small: true });
 });
 
-// Confirmar conexión
-client.on('ready', () => {
-  console.log('✅ Bot conectado y listo para recibir mensajes.');
+client.on("ready", () => {
+  console.log("✅ Cliente de WhatsApp listo.");
+  const lista = cargarDatosExcel();
+
+  // ejemplo de reenvío simulado
+  lista.forEach((item) => {
+    console.log(`📨 Enviando mensaje a: ${item.telefono}`);
+  });
 });
 
-// Escuchar mensajes y responder según Excel
-client.on('message', async msg => {
-  try {
-    const texto = msg.body?.trim()?.toLowerCase() || '';
-    const coincidencia = data.find(
-      row => row.Trigger?.toLowerCase() === texto
-    );
-
-    if (coincidencia && coincidencia.Respuesta) {
-      await client.sendMessage(msg.from, coincidencia.Respuesta);
-      console.log(`💬 Respondido a ${msg.from}: ${coincidencia.Respuesta}`);
-    } else {
-      console.log(`ℹ️ Mensaje recibido sin coincidencia: ${texto}`);
-    }
-  } catch (error) {
-    console.error('⚠️ Error procesando mensaje:', error);
-  }
+client.on("disconnected", (reason) => {
+  console.log("⚠️ Cliente desconectado:", reason);
+  console.log("🔁 Reiniciando en 5 segundos...");
+  setTimeout(() => {
+    process.exit(1);
+  }, 5000);
 });
 
-// Inicializar el cliente
-client.initialize().catch(err => {
-  console.error('❌ Error inicializando cliente:', err);
-});
+client.initialize();
