@@ -1,68 +1,57 @@
-// --------------------------------------------------------
-// 🌐 WhatsApp Forwarder Bot (Google Cloud Shell compatible)
-// --------------------------------------------------------
-
-import express from "express";
-import pkg from "whatsapp-web.js";
-import qrcode from "qrcode-terminal";
-import XLSX from "xlsx";
-
+// ✅ forwarder.js (versión GCloud estable sin reinicios)
+import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
+import qrcode from 'qrcode-terminal';
+import express from 'express';
+import fs from 'fs';
+import XLSX from 'xlsx';
 
-// --- Servidor web para mantener activo el proceso ---
+// Servidor Express básico (puerto 3000)
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => {
-  res.send("🤖 WhatsApp Forwarder Bot activo en Google Cloud Shell!");
+app.get('/', (req, res) => {
+  res.send('✅ Servidor activo - Bot de WhatsApp corriendo en Google Cloud Shell');
 });
+app.listen(3000, () => console.log('🌐 Web server escuchando en puerto 3000'));
 
-app.listen(PORT, () => {
-  console.log(`🌐 Web server listening on port ${PORT}`);
-});
+// Cargar archivo Excel
+const excelPath = './LISTA.xlsx';
+let data = [];
 
-// --- Inicializar cliente de WhatsApp ---
+if (fs.existsSync(excelPath)) {
+  const workbook = XLSX.readFile(excelPath);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  data = XLSX.utils.sheet_to_json(sheet);
+  console.log(`📋 Se cargaron ${data.length} filas desde ${sheet ? workbook.SheetNames[0] : 'desconocido'}`);
+} else {
+  console.log('⚠️ No se encontró LISTA.xlsx en la carpeta del proyecto.');
+}
+
+// Inicializar WhatsApp
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    executablePath: "/usr/bin/chromium",
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-extensions',
+      '--disable-dev-shm-usage',
+      '--single-process',
+    ],
   },
 });
 
-client.on("qr", (qr) => {
-  console.log("📱 Escanea este código QR para iniciar sesión:");
+client.on('qr', (qr) => {
+  console.log('📱 Escanea este código QR para iniciar sesión:');
   qrcode.generate(qr, { small: true });
 });
 
-client.on("ready", () => {
-  console.log("✅ Cliente de WhatsApp listo!");
+client.on('ready', () => {
+  console.log('✅ WhatsApp conectado y listo.');
 });
 
-// --- Ejemplo de envío de mensajes desde Excel ---
-import fs from "fs";
-const excelFile = "mensajes.xlsx";
-
-if (fs.existsSync(excelFile)) {
-  const workbook = XLSX.readFile(excelFile);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json(sheet);
-
-  console.log(`📋 Se cargaron ${data.length} filas desde ${excelFile}`);
-
-  data.forEach((row) => {
-    const numero = row["Numero"];
-    const mensaje = row["Mensaje"];
-
-    if (numero && mensaje) {
-      client.sendMessage(`${numero}@c.us`, mensaje).then(() => {
-        console.log(`✅ Mensaje enviado a ${numero}`);
-      });
-    }
-  });
-} else {
-  console.log("⚠️ No se encontró el archivo mensajes.xlsx, se omitió el envío.");
-}
+client.on('disconnected', (reason) => {
+  console.log('⚠️ Cliente desconectado:', reason);
+});
 
 client.initialize();
