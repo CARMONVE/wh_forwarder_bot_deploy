@@ -1,38 +1,42 @@
 #!/bin/bash
-# === Instalador y reiniciador automático para Google Cloud Shell ===
-# by ARA + ChatGPT
-# Ejecuta la instalación inicial y mantiene el bot activo automáticamente.
+# --------------------------------------------------------
+# 🚀 setup_gcloud.sh — Instalador automático para el bot de WhatsApp
+# Compatible con Google Cloud Shell, WSL y VPS Ubuntu/Debian
+# --------------------------------------------------------
 
-echo "🚀 Iniciando instalación del bot de WhatsApp en Google Cloud Shell..."
+echo ""
+echo "🚀 Iniciando instalación del bot WhatsApp..."
+echo ""
 
-# Crear carpeta para evitar advertencia de apt
-mkdir -p ~/.cloudshell
-touch ~/.cloudshell/no-apt-get-warning
-
-# Actualizar el sistema
-sudo apt-get update -y
-
-# Instalar Chromium (paquete correcto en Cloud Shell)
-echo "🌐 Instalando navegador Chromium..."
-sudo apt-get install -y chromium
-
-# Verificar instalación alternativa
-if [ ! -f "/usr/bin/chromium" ]; then
-  echo "⚠️ No se encontró Chromium. Intentando ruta alternativa..."
-  sudo apt-get install -y chromium-browser
+# --- Evitar conflictos por saltos de línea ---
+if command -v dos2unix >/dev/null 2>&1; then
+  dos2unix "$0" >/dev/null 2>&1
 fi
 
-# Instalar dependencias Node
+# --- Actualizar sistema ---
+echo "📦 Actualizando sistema..."
+sudo apt-get update -y
+
+# --- Instalar dependencias necesarias para Puppeteer ---
+echo "🧩 Instalando librerías del sistema..."
+sudo apt-get install -y \
+  wget unzip fonts-liberation libatk1.0-0 libatk-bridge2.0-0 libxdamage1 \
+  libgtk-3-0 libasound2 libxcomposite1 libxrandr2 libgbm1 libnss3 \
+  libxss1 libxtst6 xdg-utils chromium libxshmfence1 lsof net-tools
+
+# --- Instalar dependencias Node.js ---
 echo "📦 Instalando dependencias Node..."
-npm install
+npm install express whatsapp-web.js qrcode-terminal xlsx
 
-# Mensaje informativo
-echo "✅ Instalación completa. Iniciando el bot con autoreinicio."
+# --- Ajustar permisos ---
+chmod +x forwarder.js
 
-# === BUCLE DE REINICIO AUTOMÁTICO ===
-while true; do
-  echo "🟢 Ejecutando bot..."
-  npm start
-  echo "⚠️ El bot se detuvo. Reiniciando en 10 segundos..."
-  sleep 10
-done
+# --- Limpiar puerto 3000 si está ocupado ---
+echo "🧹 Liberando puerto 3000 (si está en uso)..."
+sudo fuser -k 3000/tcp >/dev/null 2>&1
+
+# --- Iniciar el bot ---
+echo ""
+echo "✅ Instalación completada. Iniciando bot..."
+echo "--------------------------------------------------------"
+npm start

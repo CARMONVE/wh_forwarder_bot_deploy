@@ -1,35 +1,51 @@
-// forwarder.js - versión estable para Cloud Shell
-import express from "express";
-import { Client, LocalAuth } from "whatsapp-web.js";
+// forwarder.js - versión final estable compatible con Node 22+
+// -----------------------------------------------------------
+
+import pkg from "whatsapp-web.js";
+const { Client, LocalAuth } = pkg;
 import qrcode from "qrcode-terminal";
-import XLSX from "xlsx";
+import express from "express";
 import fs from "fs";
+import XLSX from "xlsx";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORTS = [3000, 3001, 8080, 5000];
 
-// --- Prevención de bloqueo del puerto ---
-try {
-  const server = app.listen(PORT, () => {
-    console.log(`🌐 Servidor web escuchando en el puerto ${PORT}`);
-  });
-  process.on("SIGTERM", () => server.close());
-  process.on("SIGINT", () => server.close());
-} catch (err) {
-  console.error("⚠️ Error iniciando servidor:", err.message);
+// === Función para intentar puertos libres ===
+function tryListen(index = 0) {
+  if (index >= PORTS.length) {
+    console.error("❌ No hay puertos disponibles para el servidor web.");
+    process.exit(1);
+  }
+  const port = PORTS[index];
+  try {
+    const server = app.listen(port, () => {
+      console.log(`🌐 Servidor web escuchando en el puerto ${port}`);
+    });
+    process.on("SIGTERM", () => server.close());
+    process.on("SIGINT", () => server.close());
+  } catch (err) {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`⚠️ Puerto ${port} en uso, intentando otro...`);
+      tryListen(index + 1);
+    } else {
+      console.error("❌ Error iniciando servidor:", err.message);
+      process.exit(1);
+    }
+  }
 }
 
-// --- Cargar configuración ---
+// === Configuración y carga de datos ===
 const configPath = "./config.json";
 let config = { excelPath: "./LISTA.xlsx" };
+
 if (fs.existsSync(configPath)) {
   config = JSON.parse(fs.readFileSync(configPath));
   console.log("⚙️ Configuración cargada correctamente.");
 } else {
-  console.log("⚠️ No se encontró config.json, usando valores por defecto.");
+  console.warn("⚠️ No se encontró config.json, usando valores por defecto.");
 }
 
-// --- Leer Excel ---
 function cargarDatosExcel() {
   try {
     const wb = XLSX.readFile(config.excelPath);
@@ -43,7 +59,7 @@ function cargarDatosExcel() {
   }
 }
 
-// --- Inicializar WhatsApp ---
+// === Inicializar cliente de WhatsApp ===
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -59,26 +75,36 @@ const client = new Client({
 });
 
 client.on("qr", (qr) => {
-  console.log("🔹 Escanea este código QR en WhatsApp:");
+  console.clear();
+  console.log("📱 Escanea este código QR con tu WhatsApp:");
   qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", () => {
-  console.log("✅ Cliente de WhatsApp listo.");
+  console.log("✅ Cliente de WhatsApp listo y conectado.");
   const lista = cargarDatosExcel();
 
-  // ejemplo de reenvío simulado
+  // Aquí puedes añadir tu lógica de reenvío
   lista.forEach((item) => {
-    console.log(`📨 Enviando mensaje a: ${item.telefono}`);
+    console.log(`📨 Mensaje preparado para: ${item.telefono}`);
   });
 });
 
 client.on("disconnected", (reason) => {
-  console.log("⚠️ Cliente desconectado:", reason);
-  console.log("🔁 Reiniciando en 5 segundos...");
-  setTimeout(() => {
-    process.exit(1);
-  }, 5000);
+  console.error("⚠️ Cliente desconectado:", reason);
+  console.log("🔁 Reinicio automático en 5 segundos...");
+  setTimeout(() => process.exit(1), 5000);
 });
 
-client.initialize();
+// === Inicialización principal ===
+try {
+  tryListen();
+  client.initialize();
+} catch (err) {
+  console.error("💥 Error general:", err.message);
+}
+
+process.on("uncaughtException", (err) => {
+  console.error("💥 Error no controlado:", err.message);
+  console.log("❌ El bot se detuvo. Reinícialo manualmente con 'npm start'.");
+});
