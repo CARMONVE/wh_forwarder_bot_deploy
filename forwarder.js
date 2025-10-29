@@ -1,63 +1,100 @@
+// ===============================
+// 🟢 WhatsApp Forwarder Bot (Google Cloud Shell)
+// Compatible con: whatsapp-web.js@1.25.0 y puppeteer@24.15.0
+// ===============================
+
 import express from "express";
-import fs from "fs";
-import XLSX from "xlsx";
-import qrcode from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
-
 const { Client, LocalAuth } = pkg;
+import puppeteer from "puppeteer";
+import qrcode from "qrcode-terminal";
+import XLSX from "xlsx";
+import fs from "fs";
 
-// --- CONFIGURACIÓN DEL SERVIDOR EXPRESS ---
+// ===============================
+// 🧠 CONFIGURACIÓN BASE
+// ===============================
 const app = express();
 const PORT = process.env.PORT || 8080;
+const EXCEL_FILE = "./LISTA.xlsx";
+const CONFIG_FILE = "./config.json";
 
-app.get("/", (req, res) => {
-  res.send("✅ Bot de WhatsApp activo en Google Cloud Shell");
-});
-
-app.listen(PORT, () => console.log(`🌐 Servidor web activo en el puerto ${PORT}`));
-
-// --- CARGA DE EXCEL ---
-const EXCEL_PATH = "./LISTA.xlsx";
-
-function cargarExcel() {
-  if (!fs.existsSync(EXCEL_PATH)) {
-    console.log("❌ No se encontró el archivo LISTA.xlsx");
-    return [];
-  }
-
-  const workbook = XLSX.readFile(EXCEL_PATH);
-  const hoja = workbook.Sheets[workbook.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json(hoja);
-  console.log(`📋 Se cargaron ${data.length} filas desde ${workbook.SheetNames[0]}`);
-  return data;
+// ===============================
+// ⚙️ CARGAR CONFIGURACIÓN Y EXCEL
+// ===============================
+let reglas = {};
+if (fs.existsSync(CONFIG_FILE)) {
+  reglas = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
+  console.log("✅ Configuración cargada desde config.json");
+} else {
+  console.log("⚠️ No se encontró config.json, usando configuración vacía.");
 }
 
-// --- CONFIGURAR WHATSAPP ---
+let contactos = [];
+if (fs.existsSync(EXCEL_FILE)) {
+  const workbook = XLSX.readFile(EXCEL_FILE);
+  const hoja = workbook.SheetNames[0];
+  contactos = XLSX.utils.sheet_to_json(workbook.Sheets[hoja]);
+  console.log(`📋 Se cargaron ${contactos.length} filas desde ${hoja}`);
+} else {
+  console.log("⚠️ No se encontró LISTA.xlsx, verifique el archivo.");
+}
+
+// ===============================
+// 🤖 INICIALIZAR WHATSAPP CLIENT
+// ===============================
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    executablePath: "/usr/bin/chromium",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    headless: true,
+    executablePath: puppeteer.executablePath(), // usa el Chromium interno
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-software-rasterizer"
+    ]
   }
 });
 
-client.on("qr", qr => {
-  console.log("📱 Escanea este código QR para iniciar sesión:");
+// ===============================
+// 🧾 EVENTOS DE WHATSAPP
+// ===============================
+client.on("qr", (qr) => {
+  console.log("📱 Escanea este QR para conectar tu WhatsApp:");
   qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", () => {
-  console.log("🤖 WhatsApp listo para enviar mensajes");
-  const data = cargarExcel();
+  console.log("✅ Cliente de WhatsApp conectado y listo!");
+});
 
-  for (const row of data) {
-    if (row.Numero && row.Mensaje) {
-      const numero = `${row.Numero}@c.us`;
-      client.sendMessage(numero, row.Mensaje)
-        .then(() => console.log(`✅ Mensaje enviado a ${row.Numero}`))
-        .catch(err => console.error(`❌ Error al enviar a ${row.Numero}:`, err.message));
+client.on("message", async (msg) => {
+  const texto = msg.body.toLowerCase().trim();
+  const remitente = msg.from;
+
+  for (const [regla, respuesta] of Object.entries(reglas)) {
+    if (texto.includes(regla.toLowerCase())) {
+      await client.sendMessage(remitente, respuesta);
+      console.log(`➡️ Mensaje automático enviado a ${remitente}`);
+      return;
     }
   }
 });
 
+// ===============================
+// 🌐 SERVIDOR EXPRESS
+// ===============================
+app.get("/", (req, res) => {
+  res.send("✅ WhatsApp Forwarder Bot en ejecución");
+});
+
+app.listen(PORT, () =>
+  console.log(`🌐 Servidor web activo en el puerto ${PORT}`)
+);
+
+// ===============================
+// 🚀 INICIAR CLIENTE
+// ===============================
 client.initialize();
