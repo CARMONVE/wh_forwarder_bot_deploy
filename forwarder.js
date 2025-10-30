@@ -1,101 +1,106 @@
-// --- forwarder.js ---
-// Versión estable para Google Cloud Shell (usa Chromium interno Puppeteer)
-
 import express from "express";
-import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import pkg from "whatsapp-web.js";
 import xlsx from "xlsx";
-import puppeteer from "puppeteer";
+import fs from "fs";
+import path from "path";
 
 const { Client, LocalAuth } = pkg;
 const app = express();
+const PORT = process.env.PORT || 8080;
 
-// -----------------------------
-// 🔹 Leer reglas desde LISTA.xlsx
-// -----------------------------
-const workbook = xlsx.readFile("LISTA.xlsx");
-const sheet = workbook.Sheets[workbook.SheetNames[0]];
-const data = xlsx.utils.sheet_to_json(sheet);
+// === 1️⃣ Cargar archivo Excel ===
+const excelPath = path.join(process.cwd(), "LISTA.xlsx");
+const workbook = xlsx.readFile(excelPath);
+const sheetName = workbook.SheetNames[0];
+const sheet = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+console.log(`📋 Se cargaron ${sheet.length} reglas desde el Excel.`);
 
-console.log(`📋 Se cargaron ${data.length} reglas desde el Excel.`);
-
-// -----------------------------
-// 🔹 Crear mapa de reenvío
-// -----------------------------
-const reglas = data.map(r => ({
-  origen: r.Grupo_Origen?.trim().toUpperCase(),
-  destino: r.Grupo_Destino?.trim(),
-  restr1: r.Restriccion_1?.trim() || "",
-  restr2: r.Restriccion_2?.trim() || "",
-  restr3: r.Restriccion_3?.trim() || ""
-}));
-
-// -----------------------------
-// 🔹 Configurar cliente WhatsApp
-// -----------------------------
+// === 2️⃣ Inicializar cliente de WhatsApp ===
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-    executablePath: '/home/c_monsalve_vejar/.cache/puppeteer/chrome/linux-138.0.7204.168/chrome-linux64/chrome',
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-gpu",
       "--disable-dev-shm-usage",
       "--disable-extensions",
-      "--disable-infobars",
-      "--window-size=1920,1080"
-    ]
-  }
+      "--disable-gpu",
+    ],
+  },
 });
 
-// -----------------------------
-// 🔹 Eventos WhatsApp
-// -----------------------------
+// === 3️⃣ Mostrar QR en consola ===
 client.on("qr", (qr) => {
-  console.log("📱 Escanea este código QR para conectar:");
+  console.log("📱 Escanea este código QR para vincular WhatsApp:");
   qrcode.generate(qr, { small: true });
 });
 
+// === 4️⃣ Confirmación de conexión ===
 client.on("ready", () => {
-  console.log("✅ WhatsApp conectado y listo para reenviar mensajes.");
+  console.log("✅ Cliente de WhatsApp conectado y listo.");
 });
 
+// === 5️⃣ Procesar mensajes ===
 client.on("message", async (msg) => {
   try {
+    if (!msg.from.includes("@g.us")) return; // Solo grupos
+
     const chat = await msg.getChat();
-    const nombreGrupo = chat.name?.trim().toUpperCase();
+    const groupName = chat.name.trim();
 
-    // Buscar reglas aplicables
-    const reglasCoincidentes = reglas.filter(r => nombreGrupo.includes(r.origen));
+    console.log(`💬 Mensaje recibido desde grupo: "${groupName}"`);
 
-    for (const regla of reglasCoincidentes) {
-      const texto = msg.body || "";
-      if (
-        (!regla.restr1 || texto.includes(regla.restr1)) &&
-        (!regla.restr2 || texto.includes(regla.restr2)) &&
-        (!regla.restr3 || texto.includes(regla.restr3))
-      ) {
-        const destino = await client.getChats().then(chats =>
-          chats.find(c => c.name?.trim() === regla.destino)
-        );
-        if (destino) {
-          await client.sendMessage(destino.id._serialized, texto);
-          console.log(`➡️ Reenviado de "${nombreGrupo}" a "${regla.destino}"`);
+    // Buscar reglas que coincidan con este grupo
+    const reglas = sheet.filter((r) => r.Grupo_Origen && groupName.includes(r.Grupo_Origen.trim()));
+
+    if (reglas.length === 0) {
+      console.log(`⚠️ No hay reglas para el grupo "${groupName}"`);
+      return;
+    }
+
+    for (const regla of reglas) {
+      const restricciones = [
+        regla.Restriccion_1,
+        regla.Restriccion_2,
+        regla.Restriccion_3,
+      ].filter(Boolean); // elimina vacíos
+
+      const cumpleTodas = restricciones.every((res) => msg.body.includes(res));
+
+      if (cumpleTodas) {
+        const destinoNombre = regla.Grupo_Destino?.trim();
+        if (!destinoNombre) {
+          console.log(`⚠️ Regla sin grupo destino: ${JSON.stringify(regla)}`);
+          continue;
         }
+
+        const chats = await client.getChats();
+        const destino = chats.find(
+          (c) => c.isGroup && c.name.trim().includes(destinoNombre)
+        );
+
+        if (destino) {
+          await destino.sendMessage(msg.body);
+          console.log(`✅ Mensaje reenviado a "${destinoNombre}"`);
+        } else {
+          console.log(`🚫 No se encontró el grupo destino: "${destinoNombre}"`);
+        }
+      } else {
+        // Mostrar cuál restricción falló
+        const noCumple = restricciones.filter((res) => !msg.body.includes(res));
+        console.log(`❌ Mensaje NO cumple las restricciones: ${noCumple.join(", ")}`);
       }
     }
   } catch (err) {
-    console.error("❌ Error al procesar mensaje:", err);
+    console.error("💥 Error al procesar mensaje:", err);
   }
 });
 
-client.initialize();
-
-// -----------------------------
-// 🔹 Servidor Express
-// -----------------------------
-const PORT = process.env.PORT || 8080;
-app.get("/", (req, res) => res.send("✅ Bot de WhatsApp activo en Cloud Shell"));
+// === 6️⃣ Servidor web para mantener vivo el bot ===
+app.get("/", (req, res) => res.send("🤖 WhatsApp Bot activo"));
 app.listen(PORT, () => console.log(`🌐 Servidor web activo en el puerto ${PORT}`));
+
+// === 7️⃣ Iniciar cliente ===
+client.initialize();
