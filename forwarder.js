@@ -1,5 +1,5 @@
 // --- forwarder.js ---
-// Versión estable para Google Cloud Shell (sin snap, usa puppeteer interno)
+// Versión estable para Google Cloud Shell (usa Chromium interno Puppeteer)
 
 import express from "express";
 import pkg from "whatsapp-web.js";
@@ -37,7 +37,7 @@ const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-    executablePath: puppeteer.executablePath(), // usa Chromium interno
+    executablePath: '/home/c_monsalve_vejar/.cache/puppeteer/chrome/linux-138.0.7204.168/chrome-linux64/chrome',
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
