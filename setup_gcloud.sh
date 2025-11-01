@@ -21,14 +21,14 @@ sudo apt-get update -y
 sudo apt-get install -y wget unzip libnss3 libatk-bridge2.0-0t64 libgtk-3-0t64 \
 libx11-xcb1 libgbm1 libasound2t64 libxshmfence1 libxss1 libappindicator3-1 libindicator7 || true
 
-# --- INSTALAR CHROMIUM MANUALMENTE ---
+# --- INSTALAR CHROMIUM PORTÁTIL ---
 echo "🌐 Descargando e instalando Chromium portátil..."
-CHROMIUM_URL="https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/1215579/chrome-linux.zip"
+CHROMIUM_URL="https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/1157868/chrome-linux.zip"
 wget -O /tmp/chrome-linux.zip "$CHROMIUM_URL"
 unzip -q /tmp/chrome-linux.zip -d /tmp/
 sudo mv /tmp/chrome-linux /usr/local/chromium
 sudo ln -sf /usr/local/chromium/chrome /usr/bin/chromium-browser
-/usr/bin/chromium-browser --version || echo "⚠️ No se pudo verificar Chromium, se continuará igualmente."
+/usr/bin/chromium-browser --version || echo "⚠️ No se pudo verificar Chromium, se intentará más adelante"
 
 # --- INSTALAR DEPENDENCIAS NODE ---
 echo "📦 Instalando dependencias Node.js..."
@@ -37,7 +37,7 @@ npm install express whatsapp-web.js qrcode-terminal xlsx puppeteer@24.15.0 --for
 
 # --- PRUEBA DE CHROMIUM ---
 echo "🧠 Verificando ejecución de Chromium..."
-cat <<'EOF' > chromium-check.js
+cat <<EOF > chromium-check.js
 const puppeteer = require('puppeteer');
 (async () => {
   try {
@@ -53,7 +53,6 @@ const puppeteer = require('puppeteer');
   }
 })();
 EOF
-
 node chromium-check.js || echo "⚠️ Error al verificar Chromium, se continuará igualmente."
 
 # --- INICIAR BOT EN MODO DEPURACIÓN ---
@@ -62,7 +61,9 @@ nohup npm start > debug.log 2>&1 &
 
 sleep 3
 echo ""
-echo "✅ Instalación completa y bot en ejecución."
-echo "📋 Para ver el log en tiempo real, ejecuta:"
-echo "   tail -f ~/wh_forwarder_bot_deploy/debug.log"
+echo "✅ Instalación completa. Mostrando log en vivo..."
+echo "📋 Para salir del modo log, presiona CTRL + C"
 echo ""
+
+# --- MONITOREO EN TIEMPO REAL ---
+tail -f ~/wh_forwarder_bot_deploy/debug.log
