@@ -1,36 +1,46 @@
-// forwarder.js (reemplazar archivo actual)
+// forwarder.js — Auto-mapping names -> ids, no getChats()
+// Guarda mappings en mappings.json para evitar getChats() y errores "Evaluation failed"
+
 const fs = require('fs');
 const path = require('path');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
+const MAPPINGS_PATH = path.join(__dirname, 'mappings.json');
 
-// Load rules safely
-let rules = [];
-try {
-  const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  rules = cfg.rules || [];
-  console.log(`📂 ${rules.length} reglas cargadas desde config.json`);
-} catch (e) {
-  console.error('❌ No se pudo leer config.json:', e.message);
-  process.exit(1);
+function readJSON(p, defaultValue) {
+  try {
+    if (!fs.existsSync(p)) return defaultValue;
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) {
+    console.error(`Error leyendo ${p}:`, e.message);
+    return defaultValue;
+  }
+}
+function writeJSON(p, obj) {
+  try {
+    fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (e) {
+    console.error(`Error escribiendo ${p}:`, e.message);
+  }
 }
 
-// Ajusta esta versión si necesitas otra (ve instrucciones más abajo para cambiarla)
-const WA_WEB_VERSION = '2.2412.54';
+// Cargar reglas y mappings
+const cfg = readJSON(CONFIG_PATH, { rules: [] });
+const reglas = cfg.rules || [];
+let mappings = readJSON(MAPPINGS_PATH, {}); // { "Nombre del grupo": "1203630...@g.us", ... }
+
+console.log(`📚 Reglas cargadas: ${reglas.length}`);
+console.log(`🗺️ Mappings cargados: ${Object.keys(mappings).length}`);
+
+// Versión WA
+const WA_WEB_VERSION = cfg.webVersion || '2.2412.54';
 
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'forwarder_bot' }),
   puppeteer: {
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu'
-    ],
-    // Opcional: si tu Chromium está en otra ruta, añade executablePath
-    // executablePath: '/usr/bin/chromium-browser'
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   },
   webVersion: WA_WEB_VERSION,
   webVersionCache: {
@@ -40,88 +50,109 @@ const client = new Client({
   }
 });
 
-client.on('qr', qr => {
-  console.log('📱 QR RECIBIDO (escanea con WhatsApp Web):\n', qr);
-});
+client.on('qr', qr => console.log('📱 Escanea el QR:\n', qr));
+client.on('ready', () => console.log('✅ Bot conectado y listo para reenviar mensajes.'));
+client.on('auth_failure', (m) => console.error('❌ auth_failure:', m));
+client.on('disconnected', r => console.warn('⚠️ disconnected:', r));
 
-client.on('ready', () => {
-  console.log('✅ Bot conectado y listo para reenviar mensajes.');
-});
+/**
+ * Resuelve destino:
+ * - Si destino incluye '@' (es ID) -> lo devuelve
+ * - Si destino es nombre -> busca en mappings.json -> si existe devuelve ID
+ * - Si no existe -> devuelve null (y el caller puede registrar aviso)
+ */
+function resolveDestino(destino) {
+  if (!destino) return null;
+  if (typeof destino !== 'string') return null;
+  if (destino.includes('@')) return destino;
+  // buscar por nombre exacto
+  const id = mappings[destino];
+  return id || null;
+}
 
-client.on('auth_failure', (msg) => {
-  console.error('❌ Falló la autenticación:', msg);
-});
+// Guardar mapeo: nombre -> id (persistente)
+function saveMapping(name, id) {
+  if (!name || !id) return false;
+  if (mappings[name] === id) return false; // sin cambios
+  mappings[name] = id;
+  writeJSON(MAPPINGS_PATH, mappings);
+  console.log(`🗺️ Nuevo mapping guardado: "${name}" -> ${id}`);
+  return true;
+}
 
-client.on('disconnected', (reason) => {
-  console.warn('⚠️ Cliente desconectado:', reason);
-});
-
-// Función que determina targets según reglas (pattern es regex string con flags)
-function findTargetsForText(text, originName) {
-  const matchedTargets = [];
-  for (const r of rules) {
-    try {
-      // Validamos origin si viene configurado
-      if (r.origin && originName && r.origin !== originName) {
-        // skip si se quiere filtrar por origen exacto
-      }
-      const re = new RegExp(r.pattern, r.flags || '');
-      if (re.test(text)) {
-        matchedTargets.push(r.target);
-      }
-    } catch (e) {
-      console.error('❌ Regla inválida:', r, e.message);
-    }
+// Función para evaluar restricciones (puedes hacer más compleja)
+function cumpleRestricciones(texto, regla) {
+  try {
+    if (!regla) return false;
+    // Si regla define Restriccion_1/2/3, cada una debe estar incluida (case insensitive)
+    const t = (texto || '').toLowerCase();
+    const r1 = regla.Restriccion_1 ? String(regla.Restriccion_1).toLowerCase() : null;
+    const r2 = regla.Restriccion_2 ? String(regla.Restriccion_2).toLowerCase() : null;
+    const r3 = regla.Restriccion_3 ? String(regla.Restriccion_3).toLowerCase() : null;
+    if (r1 && !t.includes(r1)) return false;
+    if (r2 && !t.includes(r2)) return false;
+    if (r3 && !t.includes(r3)) return false;
+    return true;
+  } catch (e) {
+    return false;
   }
-  // eliminar duplicados
-  return Array.from(new Set(matchedTargets));
 }
 
 client.on('message', async (msg) => {
   try {
-    // Evitamos llamadas globales; trabajamos por mensaje
-    const text = msg.body || '';
-    const chat = await msg.getChat(); // esto es seguro por mensaje
-    const originName = chat.name || chat.id._serialized || chat.formattedTitle || '';
+    const chat = await msg.getChat();
+    const origenName = chat.name || chat.id._serialized || chat.formattedTitle || 'Unknown';
+    const originId = chat.id && chat.id._serialized ? chat.id._serialized : (msg.from || '');
+    const texto = msg.body || '';
 
-    console.log(`📩 Mensaje de ${originName} (${msg.from}): ${text.substring(0,200)}`);
+    // AUTO-LEARN mapping (si tenemos nombre y id)
+    if (chat.name && originId) {
+      saveMapping(chat.name, originId);
+    }
 
-    const targets = findTargetsForText(text, originName);
-    if (targets.length === 0) {
-      // No hay reglas aplicables
+    console.log(`[${new Date().toISOString()}] 🪲 📩 Mensaje recibido del grupo "${origenName}":\n${texto}`);
+    // Filtrar reglas que aplican por Grupo_Origen
+    const reglasAplicables = reglas.filter(r => r.Grupo_Origen === origenName || r.Grupo_Origen === originId);
+
+    if (reglasAplicables.length === 0) {
+      // nada que hacer
       return;
     }
 
-    // Reenvía el mensaje a cada target (targets deben ser nombres de chats/grupos).
-    for (const t of targets) {
+    console.log(`🪲 🔍 Reglas encontradas para "${origenName}":`, reglasAplicables);
+
+    for (const regla of reglasAplicables) {
       try {
-        // Buscamos el chat destino por nombre (no usamos getChats())
-        // getChats global puede fallar; en su lugar utilizamos search
-        const searchRes = await client.getChats(); // <<--- PROTEGIDO: lo usamos en modo try/catch
-        // pero la recomendación ES evitarlo; si falla, lo omitimos y solo logueamos
-        // Para entornos donde getChats falla, se puede mapear targets a IDs en config.json
-        const destChat = searchRes.find(c => (c.name || c.formattedTitle) === t);
-        if (!destChat) {
-          console.warn(`⚠️ No se encontró chat destino con nombre "${t}". Considera usar el ID en config.json`);
+        // comprobar restricciones
+        if (!cumpleRestricciones(texto, regla)) {
+          // No cumple -> saltar
           continue;
         }
-        await client.sendMessage(destChat.id._serialized, `🔁 Reenvío desde ${originName}:\n\n${text}`);
-        console.log(`➡️ Reenviado a "${t}" (${destChat.id._serialized})`);
+
+        // resolver destino (puede ser nombre o ID)
+        const destinoRaw = regla.Grupo_Destino;
+        const destinoId = resolveDestino(destinoRaw);
+
+        if (!destinoId) {
+          console.warn(`⚠️ No existe mapping para destino "${destinoRaw}". Por favor, envía al menos un mensaje desde ese grupo para que el bot aprenda su ID, o agrega su ID en mappings.json.`);
+          // opcional: almacenar en pending (no implementado) o notificar admin
+          continue;
+        }
+
+        // Enviar mensaje (texto simple). Puedes mejorar para reenviar archivos/media.
+        await client.sendMessage(destinoId, `🔁 Reenvío desde "${origenName}":\n\n${texto}`);
+        console.log(`➡️ Reenviado a ${destinoRaw} -> ${destinoId}`);
+
       } catch (e) {
-        // Si getChats o búsqueda falla, indicamos y seguimos
-        console.error('❌ Error buscando/enviando al target:', t, e.message);
+        console.error('❌ Error reenviando según regla:', regla, e && e.message ? e.message : e);
       }
     }
 
   } catch (err) {
-    console.error('❌ Error manejando mensaje:', err && err.message ? err.message : err);
+    console.error('❌ Error procesando mensaje:', err && err.message ? err.message : err);
   }
 });
 
-// Capturamos errores globales no atrapados
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason);
-});
+process.on('unhandledRejection', (r) => console.error('UnhandledRejection:', r));
 
 client.initialize();
-

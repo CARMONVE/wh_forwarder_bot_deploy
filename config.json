@@ -1,148 +1,271 @@
 {
+  "webVersion": "2.2412.54",
   "rules": [
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "T&S GLOBAL R11",
-      "pattern": "^(?=.*T&S GLOBAL)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "T&S GLOBAL R11",
+      "Restriccion_1": "T&S GLOBAL",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "Diactec R11",
-      "pattern": "^(?=.*DIACTEC)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "Diactec R11",
+      "Restriccion_1": "DIACTEC",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "WESTON R11",
-      "pattern": "^(?=.*WESTON)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "WESTON R11",
+      "Restriccion_1": "WESTON",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "T&S GLOBAL R11",
-      "pattern": "^(?=.*T&S GLOBAL)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "T&S GLOBAL R11",
+      "Restriccion_1": "T&S GLOBAL",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "R11 Movimiento plantas",
-      "pattern": "^(?=.*KAIROS)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "R11 Movimiento plantas",
+      "Restriccion_1": "KAIROS",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "R11 Movimiento plantas",
-      "pattern": "^(?=.*KAIROS)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "R11 Movimiento plantas",
+      "Restriccion_1": "KAIROS",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "Diactec R11",
-      "pattern": "^(?=.*DIACTEC)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "Diactec R11",
+      "Restriccion_1": "DIACTEC",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "REYJOL - R11",
-      "pattern": "^(?=.*REYJOL)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "REYJOL - R11",
+      "Restriccion_1": "REYJOL",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "WESTON R11",
-      "pattern": "^(?=.*WESTON)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "WESTON R11",
+      "Restriccion_1": "WESTON",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "OBRA CIVIL R3 R4 R5 ARA",
-      "target": "SABAOTH R11 obra civil SANTANDER",
-      "pattern": "^(?=.*SABAOTH)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "OBRA CIVIL R3 R4 R5 ARA",
+      "Grupo_Destino": "SABAOTH R11 obra civil SANTANDER",
+      "Restriccion_1": "SABAOTH",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "OBRA CIVIL R3 R4 R5 ARA",
-      "target": "KAIROS- OBRA CIVIL",
-      "pattern": "^(?=.*KAIROS)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "OBRA CIVIL R3 R4 R5 ARA",
+      "Grupo_Destino": "KAIROS- OBRA CIVIL",
+      "Restriccion_1": "KAIROS",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "OBRA CIVIL R3 R4 R5 ARA",
-      "target": "GENIEZ SAS R11",
-      "pattern": "^(?=.*GENIEZ)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "OBRA CIVIL R3 R4 R5 ARA",
+      "Grupo_Destino": "GENIEZ SAS R11",
+      "Restriccion_1": "GENIEZ",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "OBRA CIVIL R3 R4 R5 ARA",
-      "target": "3E  SMART SOLUTIONS R11",
-      "pattern": "^(?=.*3E  SMART)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "OBRA CIVIL R3 R4 R5 ARA",
+      "Grupo_Destino": "3E  SMART SOLUTIONS R11",
+      "Restriccion_1": "3E  SMART",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "KARCHER R11",
-      "pattern": "^(?=.*KARCHER)(?=.*Prioridad: MEDIA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "KARCHER R11",
+      "Restriccion_1": "KARCHER",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "KARCHER R11",
-      "pattern": "^(?=.*KARCHER)(?=.*Prioridad: MEDIA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "KARCHER R11",
+      "Restriccion_1": "KARCHER",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "EYC Puertas ARA BUCARAMANGA Y CUCUTA",
-      "pattern": "^(?=.*EYC)(?=.*Prioridad: MEDIA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "EYC Puertas ARA BUCARAMANGA Y CUCUTA",
+      "Restriccion_1": "EYC",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "EYC Puertas ARA BUCARAMANGA Y CUCUTA",
-      "pattern": "^(?=.*EYC)(?=.*Prioridad: MEDIA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "EYC Puertas ARA BUCARAMANGA Y CUCUTA",
+      "Restriccion_1": "EYC",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "KRYOTEC R11 C.Procesos",
-      "pattern": "^(?=.*KRYOTEC)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "KRYOTEC R11 C.Procesos",
+      "Restriccion_1": "KRYOTEC",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "KRYOTEC R11 C.Procesos",
-      "pattern": "^(?=.*KRYOTEC)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "KRYOTEC R11 C.Procesos",
+      "Restriccion_1": "KRYOTEC",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "BAICO R11 C.Procesos",
-      "pattern": "^(?=.*BAICO)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "BAICO R11 C.Procesos",
+      "Restriccion_1": "BAICO",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "OBRA CIVIL R3 R4 R5 ARA",
-      "target": "Trampas de grasa",
-      "pattern": "^(?=.*INGEALIMENTOS)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "OBRA CIVIL R3 R4 R5 ARA",
+      "Grupo_Destino": "Trampas de grasa",
+      "Restriccion_1": "INGEALIMENTOS",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "OBRA CIVIL R3 R4 R5 ARA",
-      "target": "Trampas de grasa",
-      "pattern": "^(?=.*INGEALIMENTOS)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "OBRA CIVIL R3 R4 R5 ARA",
+      "Grupo_Destino": "Trampas de grasa",
+      "Restriccion_1": "INGEALIMENTOS",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "INFLUMAX R11",
-      "pattern": "^(?=.*INFLUMAX)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.4).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "INFLUMAX R11",
+      "Restriccion_1": "INFLUMAX",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
     },
     {
-      "origin": "TKS EQUIPOS R3,R4 ARA",
-      "target": "INFLUMAX R11",
-      "pattern": "^(?=.*INFLUMAX)(?=.*Prioridad: ALTA)(?=.*Coordinador:COORDINADOR ZONA 4\\.5).*",
-      "flags": "ims"
+      "Grupo_Origen": "TKS EQUIPOS R3,R4 ARA",
+      "Grupo_Destino": "INFLUMAX R11",
+      "Restriccion_1": "INFLUMAX",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "DIACTEC",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "WESTON",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "T&S GLOBAL",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "KAIROS",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "REYJOL",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "SABAOTH",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "GENIEZ",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "3E  SMART",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "KARCHER",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "EYC",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "KRYOTEC",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "BAICO",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.4"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "INGEALIMENTOS",
+      "Restriccion_2": "Prioridad: MEDIA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
+    },
+    {
+      "Grupo_Origen": "Ida-ida",
+      "Grupo_Destino": "Vuelta Vuelta",
+      "Restriccion_1": "INFLUMAX",
+      "Restriccion_2": "Prioridad: ALTA",
+      "Restriccion_3": "Coordinador:COORDINADOR ZONA 4.5"
     }
   ]
 }
