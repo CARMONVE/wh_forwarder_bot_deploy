@@ -1,13 +1,13 @@
 {
   "name": "wh-forwarder-bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bot reenvío mensajes WhatsApp Web",
   "main": "forwarder.js",
   "scripts": {
     "start": "node forwarder.js"
   },
   "dependencies": {
-    "whatsapp-web.js": "^1.33.0",
-    "puppeteer": "^21.0.0"
+    "whatsapp-web.js": "1.33.3",
+    "puppeteer": "24.15.0"
   }
 }

@@ -1,43 +1,56 @@
 #!/bin/bash
 set -e
+echo "🚀 Instalación limpia del bot de WhatsApp (actualizado)"
 
-echo "🚀 Instalación limpia y funcional del bot de WhatsApp en Google Cloud Shell..."
+# Variables
+REPO_URL="https://github.com/CARMONVE/wh_forwarder_bot_deploy.git"
+WORKDIR="$HOME/wh_forwarder_bot_deploy"
+CHROMIUM_DIR="/usr/local/chromium"
+CHROMIUM_BIN="$CHROMIUM_DIR/chrome"
+CHROMIUM_SNAPSHOT_URL="https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/1157868/chrome-linux.zip"
+PUPPETEER_VERSION="24.15.0"
 
-# --- LIMPIEZA PREVIA ---
-echo "🧹 Limpiando entorno anterior..."
-cd ~
-rm -rf ~/wh_forwarder_bot_deploy
+# Limpieza previa
+echo "🧹 Limpiando..."
+rm -rf "$WORKDIR"
 rm -rf ~/.cache/puppeteer
-sudo rm -rf /usr/local/chromium || true
 
-# --- CLONAR REPOSITORIO ---
-echo "📦 Clonando el repositorio desde GitHub..."
-git clone https://github.com/CARMONVE/wh_forwarder_bot_deploy.git
-cd ~/wh_forwarder_bot_deploy
+# Clonar repo
+echo "📦 Clonando repo..."
+git clone "$REPO_URL" "$WORKDIR"
+cd "$WORKDIR"
 
-# --- ACTUALIZAR SISTEMA ---
-echo "🔄 Actualizando paquetes del sistema..."
+# Actualizar sistema e instalar dependencias de Chromium
+echo "🔄 Actualizando paquetes..."
 sudo apt-get update -y
-sudo apt-get install -y wget unzip libnss3 libatk-bridge2.0-0t64 libgtk-3-0t64 \
-libx11-xcb1 libgbm1 libasound2t64 libxshmfence1 libxss1 libappindicator3-1 libindicator7 || true
+sudo apt-get install -y wget unzip ca-certificates gnupg2 curl git build-essential \
+  libnss3 libatk-bridge2.0-0 libgtk-3-0 libx11-xcb1 libgbm1 libasound2 libxshmfence1 \
+  libxss1 libappindicator3-1 libindicator7 || true
 
-# --- INSTALAR CHROMIUM PORTÁTIL ---
-echo "🌐 Descargando e instalando Chromium portátil..."
-CHROMIUM_URL="https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/1157868/chrome-linux.zip"
-wget -O /tmp/chrome-linux.zip "$CHROMIUM_URL"
-unzip -q /tmp/chrome-linux.zip -d /tmp/
-sudo mv /tmp/chrome-linux /usr/local/chromium
-sudo ln -sf /usr/local/chromium/chrome /usr/bin/chromium-browser
-/usr/bin/chromium-browser --version || echo "⚠️ No se pudo verificar Chromium, se intentará más adelante"
+# Asegurar Node.js (instalar Node v18 LTS si no existe)
+if ! command -v node >/dev/null 2>&1; then
+  echo "🔧 Instalando Node.js 18..."
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+fi
 
-# --- INSTALAR DEPENDENCIAS NODE ---
-echo "📦 Instalando dependencias Node.js..."
+# Instalar Chromium portátil
+echo "🌐 Instalando Chromium portátil..."
+tmpzip="/tmp/chrome-linux.zip"
+wget -q -O "$tmpzip" "$CHROMIUM_SNAPSHOT_URL"
+unzip -q "$tmpzip" -d /tmp/
+sudo rm -rf "$CHROMIUM_DIR" || true
+sudo mv /tmp/chrome-linux "$CHROMIUM_DIR"
+sudo ln -sf "$CHROMIUM_BIN" /usr/bin/chromium-browser || true
+echo "✅ Chromium instalado en $CHROMIUM_DIR"
+
+# Limpieza npm y reinstalación dependencias (usar versiones del package.json)
+echo "📦 Instalando dependencias npm..."
 rm -rf node_modules package-lock.json
-npm install express whatsapp-web.js qrcode-terminal xlsx puppeteer@24.15.0 --force
+npm install --no-audit --prefer-offline
 
-# --- PRUEBA DE CHROMIUM ---
-echo "🧠 Verificando ejecución de Chromium..."
-cat <<EOF > chromium-check.js
+# Verificar Chromium con Puppeteer (prueba)
+cat > chromium-check.js <<'JS'
 const puppeteer = require('puppeteer');
 (async () => {
   try {
@@ -49,21 +62,18 @@ const puppeteer = require('puppeteer');
     console.log("✅ Chromium lanzado correctamente desde:", browser.process().spawnfile);
     await browser.close();
   } catch (err) {
-    console.error("❌ Error lanzando Chromium:", err);
+    console.error("❌ Error lanzando Chromium:", err.message || err);
+    process.exit(1);
   }
 })();
-EOF
-node chromium-check.js || echo "⚠️ Error al verificar Chromium, se continuará igualmente."
+JS
 
-# --- INICIAR BOT EN MODO DEPURACIÓN ---
-echo "▶️ Iniciando bot en modo depuración..."
+node chromium-check.js || echo "⚠️ Advertencia: Chromium no pudo lanzarse — revisa rutas y dependencias."
+
+# Iniciar bot en background (con nohup)
+echo "▶️ Iniciando bot (nohup)..."
 nohup npm start > debug.log 2>&1 &
 
-sleep 3
-echo ""
-echo "✅ Instalación completa. Mostrando log en vivo..."
-echo "📋 Para salir del modo log, presiona CTRL + C"
-echo ""
-
-# --- MONITOREO EN TIEMPO REAL ---
-tail -f ~/wh_forwarder_bot_deploy/debug.log
+sleep 2
+echo "✅ Instalación y arranque finalizados. Mira debug.log para detalles."
+tail -n 200 debug.log || true
