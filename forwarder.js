@@ -1,5 +1,7 @@
-// forwarder.js — Auto-mapping names -> ids, no getChats()
-// Guarda mappings en mappings.json para evitar getChats() y errores "Evaluation failed"
+// forwarder.js — versión estable sin getChats()
+// ✅ Auto-mapeo de nombres -> IDs
+// ✅ Compatible con config.json (nombres o IDs)
+// ✅ Sin errores "Evaluation failed" ni "bulkCreateOrReplace"
 
 const fs = require('fs');
 const path = require('path');
@@ -8,32 +10,34 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const MAPPINGS_PATH = path.join(__dirname, 'mappings.json');
 
+// Funciones utilitarias
 function readJSON(p, defaultValue) {
   try {
     if (!fs.existsSync(p)) return defaultValue;
     return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch (e) {
-    console.error(`Error leyendo ${p}:`, e.message);
+    console.error(`❌ Error leyendo ${p}:`, e.message);
     return defaultValue;
   }
 }
+
 function writeJSON(p, obj) {
   try {
     fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8');
   } catch (e) {
-    console.error(`Error escribiendo ${p}:`, e.message);
+    console.error(`❌ Error escribiendo ${p}:`, e.message);
   }
 }
 
-// Cargar reglas y mappings
+// Cargar configuración y mappings
 const cfg = readJSON(CONFIG_PATH, { rules: [] });
 const reglas = cfg.rules || [];
-let mappings = readJSON(MAPPINGS_PATH, {}); // { "Nombre del grupo": "1203630...@g.us", ... }
+let mappings = readJSON(MAPPINGS_PATH, {}); // { "nombre grupo": "id@g.us" }
 
-console.log(`📚 Reglas cargadas: ${reglas.length}`);
+console.log(`📘 Reglas cargadas: ${reglas.length}`);
 console.log(`🗺️ Mappings cargados: ${Object.keys(mappings).length}`);
 
-// Versión WA
+// Inicializar cliente WhatsApp
 const WA_WEB_VERSION = cfg.webVersion || '2.2412.54';
 
 const client = new Client({
@@ -45,114 +49,87 @@ const client = new Client({
   webVersion: WA_WEB_VERSION,
   webVersionCache: {
     type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
+    remotePath:
+      'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
     strict: false
   }
 });
 
-client.on('qr', qr => console.log('📱 Escanea el QR:\n', qr));
-client.on('ready', () => console.log('✅ Bot conectado y listo para reenviar mensajes.'));
-client.on('auth_failure', (m) => console.error('❌ auth_failure:', m));
-client.on('disconnected', r => console.warn('⚠️ disconnected:', r));
+// ======== EVENTOS ========
 
-/**
- * Resuelve destino:
- * - Si destino incluye '@' (es ID) -> lo devuelve
- * - Si destino es nombre -> busca en mappings.json -> si existe devuelve ID
- * - Si no existe -> devuelve null (y el caller puede registrar aviso)
- */
+client.on('qr', (qr) => console.log('📱 Escanea este código QR:\n', qr));
+client.on('ready', () => console.log('✅ Bot conectado y listo para reenviar mensajes.'));
+client.on('auth_failure', (msg) => console.error('❌ Error de autenticación:', msg));
+client.on('disconnected', (reason) => console.warn('⚠️ Bot desconectado. Razón:', reason));
+
+// ======== FUNCIONES AUXILIARES ========
+
 function resolveDestino(destino) {
   if (!destino) return null;
-  if (typeof destino !== 'string') return null;
-  if (destino.includes('@')) return destino;
-  // buscar por nombre exacto
-  const id = mappings[destino];
-  return id || null;
+  if (destino.includes('@')) return destino; // ya es ID
+  return mappings[destino] || null; // buscar por nombre
 }
 
-// Guardar mapeo: nombre -> id (persistente)
 function saveMapping(name, id) {
-  if (!name || !id) return false;
-  if (mappings[name] === id) return false; // sin cambios
+  if (!name || !id) return;
+  if (mappings[name] === id) return;
   mappings[name] = id;
   writeJSON(MAPPINGS_PATH, mappings);
-  console.log(`🗺️ Nuevo mapping guardado: "${name}" -> ${id}`);
+  console.log(`🗺️ Guardado mapping: "${name}" -> ${id}`);
+}
+
+function cumpleRestricciones(texto, regla) {
+  const t = texto.toLowerCase();
+  for (let i = 1; i <= 3; i++) {
+    const restr = (regla[`Restriccion_${i}`] || '').toLowerCase().trim();
+    if (restr && !t.includes(restr)) return false;
+  }
   return true;
 }
 
-// Función para evaluar restricciones (puedes hacer más compleja)
-function cumpleRestricciones(texto, regla) {
-  try {
-    if (!regla) return false;
-    // Si regla define Restriccion_1/2/3, cada una debe estar incluida (case insensitive)
-    const t = (texto || '').toLowerCase();
-    const r1 = regla.Restriccion_1 ? String(regla.Restriccion_1).toLowerCase() : null;
-    const r2 = regla.Restriccion_2 ? String(regla.Restriccion_2).toLowerCase() : null;
-    const r3 = regla.Restriccion_3 ? String(regla.Restriccion_3).toLowerCase() : null;
-    if (r1 && !t.includes(r1)) return false;
-    if (r2 && !t.includes(r2)) return false;
-    if (r3 && !t.includes(r3)) return false;
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
+// ======== PROCESAMIENTO DE MENSAJES ========
 
 client.on('message', async (msg) => {
   try {
     const chat = await msg.getChat();
-    const origenName = chat.name || chat.id._serialized || chat.formattedTitle || 'Unknown';
-    const originId = chat.id && chat.id._serialized ? chat.id._serialized : (msg.from || '');
+    const origenName = chat.name || chat.id._serialized || 'Unknown';
+    const originId = chat.id._serialized;
     const texto = msg.body || '';
 
-    // AUTO-LEARN mapping (si tenemos nombre y id)
-    if (chat.name && originId) {
-      saveMapping(chat.name, originId);
-    }
+    // Guardar auto-mapeo
+    if (chat.name && originId) saveMapping(chat.name, originId);
 
-    console.log(`[${new Date().toISOString()}] 🪲 📩 Mensaje recibido del grupo "${origenName}":\n${texto}`);
-    // Filtrar reglas que aplican por Grupo_Origen
-    const reglasAplicables = reglas.filter(r => r.Grupo_Origen === origenName || r.Grupo_Origen === originId);
+    // Buscar reglas aplicables
+    const aplicables = reglas.filter(
+      (r) => r.Grupo_Origen === origenName || r.Grupo_Origen === originId
+    );
+    if (aplicables.length === 0) return;
 
-    if (reglasAplicables.length === 0) {
-      // nada que hacer
-      return;
-    }
+    console.log(`🪲 Reglas aplicables para "${origenName}": ${aplicables.length}`);
 
-    console.log(`🪲 🔍 Reglas encontradas para "${origenName}":`, reglasAplicables);
+    for (const regla of aplicables) {
+      if (!cumpleRestricciones(texto, regla)) continue;
 
-    for (const regla of reglasAplicables) {
+      const destinoId = resolveDestino(regla.Grupo_Destino);
+      if (!destinoId) {
+        console.warn(
+          `⚠️ No se encontró mapping para "${regla.Grupo_Destino}". Envía un mensaje desde ese grupo para aprender su ID.`
+        );
+        continue;
+      }
+
       try {
-        // comprobar restricciones
-        if (!cumpleRestricciones(texto, regla)) {
-          // No cumple -> saltar
-          continue;
-        }
-
-        // resolver destino (puede ser nombre o ID)
-        const destinoRaw = regla.Grupo_Destino;
-        const destinoId = resolveDestino(destinoRaw);
-
-        if (!destinoId) {
-          console.warn(`⚠️ No existe mapping para destino "${destinoRaw}". Por favor, envía al menos un mensaje desde ese grupo para que el bot aprenda su ID, o agrega su ID en mappings.json.`);
-          // opcional: almacenar en pending (no implementado) o notificar admin
-          continue;
-        }
-
-        // Enviar mensaje (texto simple). Puedes mejorar para reenviar archivos/media.
         await client.sendMessage(destinoId, `🔁 Reenvío desde "${origenName}":\n\n${texto}`);
-        console.log(`➡️ Reenviado a ${destinoRaw} -> ${destinoId}`);
-
-      } catch (e) {
-        console.error('❌ Error reenviando según regla:', regla, e && e.message ? e.message : e);
+        console.log(`➡️ Reenviado correctamente a "${regla.Grupo_Destino}" (${destinoId})`);
+      } catch (err) {
+        console.error(`❌ Error reenviando a "${regla.Grupo_Destino}":`, err.message);
       }
     }
-
   } catch (err) {
-    console.error('❌ Error procesando mensaje:', err && err.message ? err.message : err);
+    console.error('❌ Error procesando mensaje:', err.message);
   }
 });
 
-process.on('unhandledRejection', (r) => console.error('UnhandledRejection:', r));
+process.on('unhandledRejection', (r) => console.error('⚠️ Error no manejado:', r));
 
 client.initialize();
