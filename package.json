@@ -1,17 +1,13 @@
 {
-  "name": "wh_forwarder_gcloud",
+  "name": "wh-forwarder-bot",
   "version": "1.0.0",
-  "description": "Bot de reenvío de WhatsApp con Excel - Google Cloud Shell",
+  "description": "Bot reenvío mensajes WhatsApp Web",
   "main": "forwarder.js",
-  "type": "module",
   "scripts": {
     "start": "node forwarder.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "xlsx": "^0.18.5",
-    "whatsapp-web.js": "^1.23.0",
-    "qrcode-terminal": "^0.12.0",
-    "puppeteer-core": "^21.3.0"
+    "whatsapp-web.js": "^1.33.0",
+    "puppeteer": "^21.0.0"
   }
 }
