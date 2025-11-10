@@ -1,18 +1,14 @@
 /**
  * forwarder.js
- * Bot que lee reglas desde LISTA.xlsx y reenvía mensajes según la lógica acordada.
+ * Reenvía mensajes entre grupos según LISTA.xlsx
  *
  * Requisitos:
- *  - Node 18+ (probado con 22)
- *  - Dependencias definidas en package.json
+ *  - Node 18+ (recomendado Node 22)
+ *  - package.json con dependencias (whatsapp-web.js v1.21.0, puppeteer)
  *
  * Uso:
- *  - Coloca LISTA.xlsx en la raíz del proyecto
- *  - Ejecuta: node forwarder.js
- *
- * Comportamiento importante:
- *  - Sesión de WhatsApp guardada en ./session (LocalAuth). Asegúrate de que esa carpeta esté dentro de $HOME en Cloud Shell.
- *  - Si LISTA.xlsx cambia, el script recarga las reglas (file watcher).
+ *  - Coloca LISTA.xlsx en la raíz del repo
+ *  - Ejecuta: npm install && npm start
  */
 
 const fs = require('fs');
@@ -21,27 +17,25 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const XLSX = require('xlsx');
 
-const SESSION_DIR = path.resolve('./session'); // persistente en $HOME
+const SESSION_DIR = path.resolve('./session'); // carpeta persistente para la sesión
 const LISTA_XLSX = path.resolve('./LISTA.xlsx');
 const PROCESSED_FILE = path.resolve('./processed.json');
 
 function normalizeText(s) {
   if (!s) return '';
   let t = String(s);
-  // quitar diacríticos (acentos)
-  t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // quitar acentos
   t = t.replace(/\r\n/g, '\n');
-  // normalizar espacio alrededor de ':' y colapsar espacios
-  t = t.replace(/\s*:\s*/g, ':');
-  t = t.replace(/[^\S\r\n]+/g, ' ');
-  t = t.replace(/\n+/g, ' ');
+  t = t.replace(/\s*:\s*/g, ':'); // normalizar " : " -> ":"
+  t = t.replace(/[^\S\r\n]+/g, ' '); // compactar espacios (preserva saltos)
+  t = t.replace(/\n+/g, ' '); // convertir saltos en espacios
   t = t.trim().toLowerCase();
   return t;
 }
 
 function loadRulesFromXlsx(xlsxPath) {
   if (!fs.existsSync(xlsxPath)) {
-    console.error('LISTA.xlsx no encontrada en', xlsxPath);
+    console.error('ERROR: LISTA.xlsx no encontrada en', xlsxPath);
     return [];
   }
   try {
@@ -70,7 +64,7 @@ function loadProcessed(file) {
     const txt = fs.readFileSync(file, 'utf8');
     return JSON.parse(txt || '{}');
   } catch (e) {
-    console.warn('No se pudo leer processed.json - se crea uno nuevo.', e.message);
+    console.warn('No se pudo leer processed.json - se inicia vacío.', e.message);
     return {};
   }
 }
@@ -86,11 +80,11 @@ function saveProcessed(obj) {
 let RULES = loadRulesFromXlsx(LISTA_XLSX);
 let PROCESSED = loadProcessed(PROCESSED_FILE);
 
-// vigilamos cambios en LISTA.xlsx y recargamos automáticamente
+// watcher para recargar reglas si actualizas LISTA.xlsx
 try {
   fs.watchFile(LISTA_XLSX, { interval: 5000 }, (curr, prev) => {
     if (curr.mtimeMs !== prev.mtimeMs) {
-      console.log('LISTA.xlsx cambió -> recargando reglas...');
+      console.log('LISTA.xlsx modificado -> recargando reglas...');
       RULES = loadRulesFromXlsx(LISTA_XLSX);
     }
   });
@@ -98,6 +92,7 @@ try {
   console.warn('No se pudo establecer watcher para LISTA.xlsx.', e.message);
 }
 
+// Cliente WhatsApp
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'forwarder_bot', dataPath: SESSION_DIR }),
   puppeteer: {
@@ -112,20 +107,20 @@ const client = new Client({
 });
 
 client.on('qr', qr => {
-  console.log('QR recibido — escanea con WhatsApp (o usa el base64/imagen).');
+  console.log('QR recibido — escanea con WhatsApp o usa el base64/imagen en logs si está deformado.');
   qrcode.generate(qr, { small: true });
 });
 
-client.on('ready', async () => {
-  console.log('Cliente listo. Reglas cargadas:', RULES.length);
+client.on('ready', () => {
+  console.log('Cliente listo. Reglas:', RULES.length);
 });
 
 client.on('auth_failure', msg => {
-  console.error('Auth failure:', msg);
+  console.error('Falló autenticación:', msg);
 });
 
 client.on('disconnected', reason => {
-  console.warn('Desconectado:', reason);
+  console.warn('Cliente desconectado:', reason);
 });
 
 async function findChatByExactName(name) {
@@ -134,21 +129,33 @@ async function findChatByExactName(name) {
   return all.find(c => c && c.name && normalizeText(c.name) === norm);
 }
 
+/**
+ * Lógica de validación:
+ * - Grupo origen: coincidencia exacta (ignorando mayúsculas/acentos)
+ * - r1: parcial (contains)  -> si está vacía se ignora
+ * - r2: exacta (substring)  -> si está vacía se ignora
+ * - r3: exacta (substring)  -> si está vacía se ignora
+ * - Si la fila no tiene target o source, se omite.
+ */
 function ruleAppliesToMessage(rule, chatName, messageText) {
-  // Grupo origen debe coincidir EXACTO
   if (normalizeText(chatName) !== normalizeText(rule.source)) return false;
 
-  // si alguna restricción vacía => la regla se cancela (B)
-  if (!rule.r1 || !rule.r2 || !rule.r3) return false;
-
   const txt = normalizeText(messageText || '');
-  const r1 = normalizeText(rule.r1);
-  const r2 = normalizeText(rule.r2);
-  const r3 = normalizeText(rule.r3);
 
-  if (!txt.includes(r1)) return false; // r1 = partial (contains)
-  if (!txt.includes(r2)) return false; // r2 = must appear
-  if (!txt.includes(r3)) return false; // r3 = must appear
+  // si restricción vacía -> la ignoramos (NO cancelamos la regla)
+  // (esto permite filas con 1,2 o 3 restricciones)
+  if (rule.r1) {
+    const r1 = normalizeText(rule.r1);
+    if (!txt.includes(r1)) return false; // r1 partial
+  }
+  if (rule.r2) {
+    const r2 = normalizeText(rule.r2);
+    if (!txt.includes(r2)) return false; // r2 must be present
+  }
+  if (rule.r3) {
+    const r3 = normalizeText(rule.r3);
+    if (!txt.includes(r3)) return false; // r3 must be present
+  }
 
   return true;
 }
@@ -168,19 +175,20 @@ client.on('message_create', async (message) => {
     for (const rule of RULES) {
       try {
         if (ruleAppliesToMessage(rule, chatName, body)) {
-          console.log(`Regla aplicada (fila ${rule._rowIndex}): ${rule.source} -> ${rule.target} (msg ${mid})`);
+          console.log(`Regla matched (fila ${rule._rowIndex}): ${rule.source} -> ${rule.target} (msg ${mid})`);
           const targetChat = await findChatByExactName(rule.target);
           if (!targetChat) {
-            console.warn('Chat destino no encontrado:', rule.target);
+            console.warn('Destino no encontrado en la lista de chats:', rule.target);
             continue;
           }
+
           try {
             await message.forward(targetChat.id._serialized);
-            console.log('Reenviado a', targetChat.name);
+            console.log('Mensaje reenviado a', targetChat.name);
             PROCESSED[mid] = { forwardedTo: targetChat.name, timestamp: new Date().toISOString() };
             saveProcessed(PROCESSED);
           } catch (e) {
-            console.error('Error reenviando mensaje:', e);
+            console.error('Error reenviando:', e);
           }
           break; // no evaluar más reglas para este mensaje
         }
@@ -196,7 +204,6 @@ client.on('message_create', async (message) => {
 
 client.initialize();
 
-// shutdown limpio
 process.on('SIGINT', () => {
   console.log('SIGINT -> cerrando cliente');
   client.destroy();
