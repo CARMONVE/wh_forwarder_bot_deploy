@@ -1,9 +1,8 @@
 {
-  "sessionName": "forwarder_session",
-  "excelFile": "LISTA.xlsx",
-  "sheetName": "Hoja1",
-  "intervalSeconds": 5,
-  "logMessages": true,
-  "allowForwardFromUnknownGroups": false,
-  "showWarnings": true
+  "excelPath": "LISTA.xlsx",
+  "logFile": "log.txt",
+  "qrFolder": "qr",
+  "forwarding": {
+    "partialRestrictionMatch": true
+  }
 }

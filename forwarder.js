@@ -1,110 +1,94 @@
-import { Client, LocalAuth } from "whatsapp-web.js";
-import qrcode from "qrcode-terminal";
-import xlsx from "xlsx";
+import pkg from "whatsapp-web.js";
+const { Client, LocalAuth } = pkg;
+import qr from "qrcode-terminal";
 import fs from "fs";
+import xlsx from "xlsx";
 import path from "path";
 
 const __dirname = path.resolve();
 
-// Load config
-const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+const CONFIG = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 
-// Read Excel
-function loadRules() {
-    const workbook = xlsx.readFile(config.excelFile);
-    const sheet = workbook.Sheets[config.sheetName];
-    const rows = xlsx.utils.sheet_to_json(sheet);
-
-    return rows.map(row => ({
-        origen: String(row.Grupo_Origen || "").trim(),
-        destino: String(row.Grupo_Destino || "").trim(),
-        r1: String(row.Restriccion_1 || "").trim(),
-        r2: String(row.Restriccion_2 || "").trim(),
-        r3: String(row.Restriccion_3 || "").trim()
-    }));
+function loadExcel() {
+    const workbook = xlsx.readFile(CONFIG.excelPath);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    return xlsx.utils.sheet_to_json(sheet);
 }
 
-let RULES = loadRules();
+function logEvent(text) {
+    fs.appendFileSync(CONFIG.logFile, `[${new Date().toISOString()}] ${text}\n`);
+}
 
-// Watch for Excel Updates every 60 sec
-setInterval(() => {
-    RULES = loadRules();
-}, 60000);
+function extractTicketInfo(message) {
+    return message.body;
+}
 
-// Start WhatsApp client
 const client = new Client({
-    authStrategy: new LocalAuth({ clientId: config.sessionName }),
+    authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"]
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-first-run",
+            "--no-zygote"
+        ]
     }
 });
 
-client.on("qr", qr => {
+client.on("qr", (qrCode) => {
     console.clear();
-    console.log("📱 Escanea el QR para iniciar sesión:");
-    qrcode.generate(qr, { small: true });
+    console.log("📱 Escanea el siguiente QR para iniciar sesión:\n");
+    qr.generate(qrCode, { small: true });
 });
 
 client.on("ready", () => {
-    console.log("✅ Bot iniciado y listo para reenviar mensajes.");
+    console.log("✅ BOT Listo y conectado!");
+    logEvent("Bot iniciado");
 });
 
-function matchesRestrictions(msg, rule) {
-    const txt = msg.toLowerCase();
+client.on("message", async (message) => {
+    const list = loadExcel();
+    const userMessage = extractTicketInfo(message);
 
-    // Restricción_1 -> Parcial (basta con que contenga una palabra)
-    let ok1 = true;
-    if (rule.r1) {
-        const words = rule.r1.toLowerCase().split(" ");
-        ok1 = words.some(w => txt.includes(w));
-    }
+    const originGroup = message.from.includes("@g.us") ? message.from : null;
+    if (!originGroup) return;
 
-    // Restricción_2 -> Completa (debe contener todo)
-    let ok2 = true;
-    if (rule.r2) {
-        ok2 = txt.includes(rule.r2.toLowerCase());
-    }
+    const match = list.find(row =>
+        row.Grupo_Origen?.trim().toLowerCase() === message.from?.trim().toLowerCase()
+    );
 
-    // Restricción_3 -> Completa (debe contener todo)
-    let ok3 = true;
-    if (rule.r3) {
-        ok3 = txt.includes(rule.r3.toLowerCase());
-    }
+    if (!match) return;
 
-    return ok1 && ok2 && ok3;
-}
+    const restrictions = [
+        match.Restriccion_1,
+        match.Restriccion_2,
+        match.Restriccion_3
+    ].filter(Boolean);
 
-client.on("message", async msg => {
-    try {
-        const chat = await msg.getChat();
-        if (!chat.isGroup) return;
+    const allRestrictionsMatch = restrictions.every(r =>
+        CONFIG.forwarding.partialRestrictionMatch
+            ? userMessage.toLowerCase().includes(r.toLowerCase())
+            : userMessage.toLowerCase().includes(r.toLowerCase())
+    );
 
-        const groupName = chat.name.trim();
+    if (!allRestrictionsMatch) return;
 
-        for (const rule of RULES) {
-            if (rule.origen === groupName) {
-                const content = msg.body;
+    const destinationGroup = match.Grupo_Destino;
+    if (!destinationGroup) return;
 
-                if (!content) return;
-
-                if (matchesRestrictions(content, rule)) {
-                    const targetGroup = await findGroup(rule.destino);
-                    if (targetGroup) {
-                        await client.sendMessage(targetGroup.id._serialized, content);
-                        console.log(`➡️ Reenviado de "${rule.origen}" → "${rule.destino}"`);
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        console.log("⚠️ Error procesando mensaje:", err.message);
-    }
-});
-
-async function findGroup(name) {
     const chats = await client.getChats();
-    return chats.find(c => c.isGroup && c.name.trim() === name.trim());
-}
+    const target = chats.find(c => c.name.trim().toLowerCase() === destinationGroup.trim().toLowerCase());
+
+    if (!target) {
+        logEvent(`❌ No se encontró el grupo destino: ${destinationGroup}`);
+        return;
+    }
+
+    await client.sendMessage(target.id._serialized, userMessage);
+    logEvent(`✅ Reenviado de "${match.Grupo_Origen}" a "${match.Grupo_Destino}"`);
+});
 
 client.initialize();
