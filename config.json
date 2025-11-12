@@ -1,8 +1,6 @@
 {
-  "excelPath": "LISTA.xlsx",
-  "logFile": "log.txt",
-  "qrFolder": "qr",
-  "forwarding": {
-    "partialRestrictionMatch": true
-  }
+  "excel_file": "LISTA.xlsx",
+  "mongo_url": "mongodb+srv://aravisitatiendar11_db_user:KrYku2QBWRyUwU9F@cluster0.k6a1vkj.mongodb.net/whsession?retryWrites=true&w=majority&appName=Cluster0",
+  "session_collection": "sessions",
+  "log_file": "logs.txt"
 }

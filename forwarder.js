@@ -1,94 +1,91 @@
 import pkg from "whatsapp-web.js";
-const { Client, LocalAuth } = pkg;
-import qr from "qrcode-terminal";
-import fs from "fs";
+import qrcode from "qrcode-terminal";
 import xlsx from "xlsx";
-import path from "path";
+import mongoose from "mongoose";
+import fs from "fs";
+const { Client, LocalAuth } = pkg;
 
-const __dirname = path.resolve();
+// === CONFIG ===
+const CONFIG = JSON.parse(fs.readFileSync("config.json", "utf8"));
+const EXCEL_FILE = CONFIG.excel_file;
+const LOG_FILE = CONFIG.log_file;
 
-const CONFIG = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+// === MongoDB Connection ===
+mongoose
+  .connect(CONFIG.mongo_url, { dbName: "whsession" })
+  .then(() => console.log("✅ Conectado a MongoDB Atlas"))
+  .catch((err) => console.error("❌ Error MongoDB:", err));
 
-function loadExcel() {
-    const workbook = xlsx.readFile(CONFIG.excelPath);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    return xlsx.utils.sheet_to_json(sheet);
+// === Cargar LISTA.xlsx ===
+function loadRules() {
+  const wb = xlsx.readFile(EXCEL_FILE);
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = xlsx.utils.sheet_to_json(ws);
+  console.log(`📘 ${rows.length} reglas cargadas desde ${EXCEL_FILE}`);
+  return rows;
 }
+const rules = loadRules();
 
-function logEvent(text) {
-    fs.appendFileSync(CONFIG.logFile, `[${new Date().toISOString()}] ${text}\n`);
-}
-
-function extractTicketInfo(message) {
-    return message.body;
-}
-
+// === Inicializar Cliente WhatsApp ===
 const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--no-first-run",
-            "--no-zygote"
-        ]
-    }
+  authStrategy: new LocalAuth({
+    clientId: "forwarder_session",
+    dataPath: "./.wwebjs_auth",
+  }),
+  puppeteer: {
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  },
 });
 
-client.on("qr", (qrCode) => {
-    console.clear();
-    console.log("📱 Escanea el siguiente QR para iniciar sesión:\n");
-    qr.generate(qrCode, { small: true });
+client.on("qr", (qr) => {
+  console.log("📱 Escanea el código QR:");
+  qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", () => {
-    console.log("✅ BOT Listo y conectado!");
-    logEvent("Bot iniciado");
+  console.log("✅ WhatsApp conectado y listo.");
 });
 
-client.on("message", async (message) => {
-    const list = loadExcel();
-    const userMessage = extractTicketInfo(message);
+// === Lógica de reenvío ===
+client.on("message", async (msg) => {
+  try {
+    const chat = await msg.getChat();
+    if (!chat.isGroup) return;
 
-    const originGroup = message.from.includes("@g.us") ? message.from : null;
-    if (!originGroup) return;
+    const groupName = chat.name.trim().toUpperCase();
+    const text = msg.body.toUpperCase();
 
-    const match = list.find(row =>
-        row.Grupo_Origen?.trim().toLowerCase() === message.from?.trim().toLowerCase()
-    );
+    for (const rule of rules) {
+      const origen = (rule.Grupo_Origen || "").toUpperCase();
+      const destino = (rule.Grupo_Destino || "").toUpperCase();
+      const r1 = (rule.Restriccion_1 || "").toUpperCase();
+      const r2 = (rule.Restriccion_2 || "").toUpperCase();
+      const r3 = (rule.Restriccion_3 || "").toUpperCase();
 
-    if (!match) return;
+      if (groupName === origen) {
+        // Restricción parcial solo para r1
+        const ok1 = text.includes(r1.split(" ")[0]);
+        const ok2 = r2 ? text.includes(r2) : true;
+        const ok3 = r3 ? text.includes(r3) : true;
 
-    const restrictions = [
-        match.Restriccion_1,
-        match.Restriccion_2,
-        match.Restriccion_3
-    ].filter(Boolean);
-
-    const allRestrictionsMatch = restrictions.every(r =>
-        CONFIG.forwarding.partialRestrictionMatch
-            ? userMessage.toLowerCase().includes(r.toLowerCase())
-            : userMessage.toLowerCase().includes(r.toLowerCase())
-    );
-
-    if (!allRestrictionsMatch) return;
-
-    const destinationGroup = match.Grupo_Destino;
-    if (!destinationGroup) return;
-
-    const chats = await client.getChats();
-    const target = chats.find(c => c.name.trim().toLowerCase() === destinationGroup.trim().toLowerCase());
-
-    if (!target) {
-        logEvent(`❌ No se encontró el grupo destino: ${destinationGroup}`);
-        return;
+        if (ok1 && ok2 && ok3) {
+          const chats = await client.getChats();
+          const destinoChat = chats.find(
+            (c) => c.isGroup && c.name.trim().toUpperCase() === destino
+          );
+          if (destinoChat) {
+            await client.sendMessage(destinoChat.id._serialized, msg.body);
+            console.log(`➡️ Mensaje reenviado de [${origen}] a [${destino}]`);
+            fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] OK ${origen} → ${destino}\n`);
+          }
+        }
+      }
     }
-
-    await client.sendMessage(target.id._serialized, userMessage);
-    logEvent(`✅ Reenviado de "${match.Grupo_Origen}" a "${match.Grupo_Destino}"`);
+  } catch (err) {
+    console.error("⚠️ Error al procesar mensaje:", err);
+  }
 });
 
+// === Inicio ===
 client.initialize();
