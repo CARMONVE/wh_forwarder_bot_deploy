@@ -1,131 +1,110 @@
+// ====================== DEPENDENCIAS ======================
 import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
-import XLSX from 'xlsx';
+import xlsx from 'xlsx';
 import mongoose from 'mongoose';
+import path from 'path';
+import url from 'url';
 
-const { Client, LocalAuth } = pkg;
+// ====================== RUTAS Y CONFIG ======================
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const configPath = path.join(__dirname, 'config.json');
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
-// ==== CONFIGURACIÓN ====
-const CONFIG = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
-const EXCEL_PATH = './LISTA.xlsx';
+const EXCEL_PATH = path.resolve(config.excel_path);
+const MONGO_URL = config.mongo_url;
 
-// ==== CONEXIÓN A MONGODB ====
-async function conectarMongo() {
+// ====================== CONEXIÓN MONGODB ======================
+async function connectMongo() {
   try {
-    await mongoose.connect(CONFIG.mongo_url, { useNewUrlParser: true, useUnifiedTopology: true });
-    console.log('✅ Conectado a MongoDB Atlas');
+    await mongoose.connect(MONGO_URL, { 
+      useNewUrlParser: true, 
+      useUnifiedTopology: true 
+    });
+    console.log("✅ Conectado a MongoDB Atlas");
   } catch (err) {
-    console.error('❌ Error MongoDB:', err);
+    console.error("❌ Error MongoDB:", err.message);
   }
 }
-await conectarMongo();
+await connectMongo();
 
-// ==== CARGAR REGLAS DESDE EXCEL ====
-function cargarReglas() {
-  try {
-    const workbook = XLSX.readFile(EXCEL_PATH);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const reglas = XLSX.utils.sheet_to_json(sheet);
-    console.log(`📘 ${reglas.length} reglas cargadas desde LISTA.xlsx`);
-    return reglas;
-  } catch (err) {
-    console.error('❌ Error cargando LISTA.xlsx:', err);
-    return [];
+// ====================== ESTRUCTURA DEL EXCEL ======================
+function loadRules() {
+  if (!fs.existsSync(EXCEL_PATH)) {
+    console.error(`❌ No se encontró el archivo Excel: ${EXCEL_PATH}`);
+    process.exit(1);
   }
+
+  const wb = xlsx.readFile(EXCEL_PATH);
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(ws);
+  console.log(`📘 ${data.length} reglas cargadas desde LISTA.xlsx`);
+  return data;
 }
 
-const reglas = cargarReglas();
+const reglas = loadRules();
 
-// ==== INICIAR WHATSAPP ====
+// ====================== WHATSAPP CLIENT ======================
 const client = new Client({
-  authStrategy: new LocalAuth({ clientId: "cloud_session" }),
+  authStrategy: new LocalAuth({ dataPath: './session' }),
   puppeteer: {
     headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-software-rasterizer'
+      '--disable-extensions'
     ]
   }
 });
 
-// ==== MOSTRAR QR EN CONSOLA ====
-client.on('qr', (qr) => {
-  console.log('📱 Escanea el código QR para conectar tu bot:');
+// ====================== QR ======================
+client.on('qr', qr => {
   qrcode.generate(qr, { small: true });
+  console.log("📱 Escanea el código QR para conectar tu bot...");
 });
 
-// ==== CONFIRMACIÓN DE CONEXIÓN ====
+// ====================== READY ======================
 client.on('ready', () => {
-  console.log('✅ WhatsApp conectado y listo.');
+  console.log("✅ WhatsApp conectado y listo.");
 });
 
-// ==== ESCUCHA DE MENSAJES ENVIADOS Y RECIBIDOS ====
-client.on('message', async (msg) => {
-  console.log(`💬 Mensaje recibido en grupo: ${msg.from}`);
-  try {
-    await procesarMensaje(msg);
-  } catch (err) {
-    console.error('❌ Error procesando mensaje:', err);
-  }
-});
-
-// 🔹 NUEVA LÍNEA AGREGADA: para capturar mensajes creados o reenviados 🔹
-client.on('message_create', async (msg) => {
-  console.log(`💬 Mensaje creado o recibido: ${msg.from}`);
-  try {
-    await procesarMensaje(msg);
-  } catch (err) {
-    console.error('❌ Error procesando mensaje_create:', err);
-  }
-});
-
-// ==== PROCESAR MENSAJE ====
-async function procesarMensaje(msg) {
+// ====================== MENSAJES ======================
+client.on('message', async msg => {
+  const texto = msg.body.toUpperCase();
   const chat = await msg.getChat();
-  if (!chat.isGroup) return; // Ignorar chats privados
 
-  const grupoOrigen = chat.name.trim();
-  const mensajeTexto = msg.body.toUpperCase();
+  const grupoOrigen = chat.name?.trim().toUpperCase();
+  const regla = reglas.find(r =>
+    (r.Grupo_Origen || "").trim().toUpperCase() === grupoOrigen
+  );
 
-  for (const regla of reglas) {
-    const origen = (regla.Grupo_Origen || '').trim().toUpperCase();
-    const destino = (regla.Grupo_Destino || '').trim();
-    const r1 = (regla.Restriccion_1 || '').toUpperCase();
-    const r2 = (regla.Restriccion_2 || '').toUpperCase();
-    const r3 = (regla.Restriccion_3 || '').toUpperCase();
+  if (!regla) return;
 
-    // Validar coincidencia exacta de grupo origen
-    if (grupoOrigen === origen) {
-      // Validar restricciones (1 parcial, 2 y 3 exactas si existen)
-      const cumpleR1 = r1 ? mensajeTexto.includes(r1) : true;
-      const cumpleR2 = r2 ? mensajeTexto.includes(r2) : true;
-      const cumpleR3 = r3 ? mensajeTexto.includes(r3) : true;
+  const r1 = (regla.Restriccion_1 || "").toUpperCase();
+  const r2 = (regla.Restriccion_2 || "").toUpperCase();
+  const r3 = (regla.Restriccion_3 || "").toUpperCase();
 
-      if (cumpleR1 && cumpleR2 && cumpleR3) {
-        console.log(`📋 Coincidencia encontrada: reenviando mensaje a ${destino}`);
-        await reenviarMensaje(msg, destino);
-        break;
-      }
+  const cumple1 = !r1 || texto.includes(r1);
+  const cumple2 = !r2 || texto.includes(r2);
+  const cumple3 = !r3 || texto.includes(r3);
+
+  if (cumple1 && cumple2 && cumple3) {
+    const destino = (regla.Grupo_Destino || "").trim();
+    if (!destino) return;
+
+    const chats = await client.getChats();
+    const grupoDestino = chats.find(c => c.name.trim() === destino);
+
+    if (grupoDestino) {
+      await grupoDestino.sendMessage(`📩 Reenviado desde *${grupoOrigen}*\n\n${msg.body}`);
+      console.log(`✅ Mensaje reenviado de "${grupoOrigen}" → "${destino}"`);
+    } else {
+      console.log(`⚠️ Grupo destino no encontrado: ${destino}`);
     }
   }
-}
+});
 
-// ==== FUNCIÓN PARA REENVIAR MENSAJE ====
-async function reenviarMensaje(msg, grupoDestino) {
-  const chats = await client.getChats();
-  const destino = chats.find(c => c.isGroup && c.name.trim() === grupoDestino.trim());
-
-  if (destino) {
-    await client.sendMessage(destino.id._serialized, msg.body);
-    console.log(`✅ Mensaje reenviado a ${grupoDestino}`);
-  } else {
-    console.warn(`⚠️ Grupo destino no encontrado: ${grupoDestino}`);
-  }
-}
-
-// ==== INICIALIZAR CLIENTE ====
+// ====================== INICIO ======================
 client.initialize();
