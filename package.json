@@ -1,8 +1,7 @@
-cat <<'EOF' > ~/wh_forwarder_bot_deploy/package.json
 {
   "name": "wh_forwarder_bot",
-  "version": "1.4.0",
-  "description": "Bot de reenvío automático entre grupos de WhatsApp con validación de reglas desde Excel y MongoDB",
+  "version": "2.0.0",
+  "description": "Bot de reenvío automático entre grupos de WhatsApp con validación desde Excel",
   "main": "forwarder.js",
   "type": "module",
   "scripts": {
@@ -17,5 +16,5 @@ cat <<'EOF' > ~/wh_forwarder_bot_deploy/package.json
     "pm2": "^5.4.2"
   }
 }
-EOF
+
 

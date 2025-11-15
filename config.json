@@ -3,6 +3,6 @@
   "owner": "R11_VISITA_TIENDA",
   "auto_restart": false,
   "allowed_numbers": ["573102282530", "573112289102"],
-  "excel_file": "LISTA.xlsx",
-  "mongo_url": "mongodb+srv://aravisitatiendar11_db_user:KrYku2QBWRyUwU9F@cluster0.k6a1vkj.mongodb.net/whsession?retryWrites=true&w=majority",
-  "restrictions":
+  "excel_path": "LISTA.xlsx",
+  "mongo_url": "mongodb+srv://aravisitatiendar11_db_user:KrYku2QBWRyUwU9F@cluster0.k6a1vkj.mongodb.net/whsession?retryWrites=true&w=majority"
+}
