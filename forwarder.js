@@ -1,134 +1,126 @@
-// ====================== DEPENDENCIAS ======================
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import fs from 'fs';
 import xlsx from 'xlsx';
-import mongoose from 'mongoose';
-import path from 'path';
-import url from 'url';
 
-// ====================== RUTAS Y CONFIG ======================
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, 'config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+/* ================================
+   CARGAR CONFIG
+================================ */
+const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+const excelPath = config.excel_path || "LISTA.xlsx";
 
-const EXCEL_PATH = path.resolve(config.excel_path);
-const MONGO_URL = config.mongo_url;
+/* ================================
+   FUNC: CARGA EL EXCEL
+================================ */
+function cargarReglas() {
+    console.log("======================================");
+    console.log("📘 Leyendo Excel:", excelPath);
+    console.log("======================================");
 
-// ====================== CONEXIÓN MONGODB ======================
-async function connectMongo() {
-  try {
-    await mongoose.connect(MONGO_URL, { 
-      useNewUrlParser: true, 
-      useUnifiedTopology: true 
+    const wb = xlsx.readFile(excelPath);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(ws, { defval: "" });
+
+    rows.forEach((r, i) => {
+        console.log(`Fila ${i + 2}: Origen="${r.Grupo_Origen}" → Destino="${r.Grupo_Destino}" | R1="${r.Restriccion_1}" R2="${r.Restriccion_2}" R3="${r.Restriccion_3}"`);
     });
-    console.log("✅ Conectado a MongoDB Atlas");
-  } catch (err) {
-    console.error("❌ Error MongoDB:", err.message);
-  }
-}
-await connectMongo();
 
-// ====================== CARGA DEL EXCEL ======================
-function loadRules() {
-  if (!fs.existsSync(EXCEL_PATH)) {
-    console.error(`❌ No se encontró el archivo Excel: ${EXCEL_PATH}`);
-    process.exit(1);
-  }
+    console.log("======================================");
 
-  const wb = xlsx.readFile(EXCEL_PATH);
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const data = xlsx.utils.sheet_to_json(ws);
-
-  console.log(`📘 ${data.length} reglas cargadas desde LISTA.xlsx`);
-  return data;
+    return rows;
 }
 
-const reglas = loadRules();
+let reglas = cargarReglas();
 
-// ====================== WHATSAPP CLIENT ======================
+/* ================================
+   INICIAR WHATSAPP
+================================ */
 const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: './session' }),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-extensions'
-    ]
-  }
+    authStrategy: new LocalAuth(),
+    puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }
 });
 
-// ====================== QR ======================
 client.on('qr', qr => {
-  qrcode.generate(qr, { small: true });
-  console.log("📱 Escanea el código QR para conectar tu bot...");
+    console.log("📱 ESCANEA ESTE QR");
+    qrcode.generate(qr, { small: true });
 });
 
-// ====================== READY ======================
 client.on('ready', () => {
-  console.log("✅ WhatsApp conectado y listo.");
+    console.log("✅ WhatsApp conectado y listo.");
 });
 
-// ====================== MENSAJES ======================
+/* ================================
+   MANEJAR MENSAJES
+================================ */
 client.on('message', async msg => {
-  const texto = msg.body.toUpperCase();
-  const chat = await msg.getChat();
+    const chat = await msg.getChat();
 
-  if (!chat.isGroup) return;
+    if (!chat.isGroup) return; // ignorar mensajes privados
 
-  const grupoOrigen = chat.name?.trim().toUpperCase();
+    const origen = chat.name.trim();
+    const texto = msg.body.trim();
 
-  console.log("\n===============================");
-  console.log("📥 Mensaje recibido desde:", grupoOrigen);
-  console.log("📄 Contenido:", texto);
-  console.log("===============================\n");
+    console.log("\n\n======================================");
+    console.log("📥 MENSAJE RECIBIDO");
+    console.log("Grupo:", origen);
+    console.log("Texto:", texto);
+    console.log("======================================");
 
-  const regla = reglas.find(r =>
-    (r.Grupo_Origen || "").trim().toUpperCase() === grupoOrigen
-  );
+    /* 1. Buscar la regla */
+    const regla = reglas.find(r => (r.Grupo_Origen || "").trim().toUpperCase() === origen.toUpperCase());
 
-  if (!regla) {
-    console.log("⚠️ No hay reglas para este grupo.");
-    return;
-  }
+    if (!regla) {
+        console.log("❌ No existe regla para este grupo → No reenviar");
+        return;
+    }
 
-  const r1 = (regla.Restriccion_1 || "").toUpperCase();
-  const r2 = (regla.Restriccion_2 || "").toUpperCase();
-  const r3 = (regla.Restriccion_3 || "").toUpperCase();
+    console.log("🔎 REGLA APLICADA:");
+    console.log(" - Destino:", regla.Grupo_Destino);
+    console.log(" - R1:", regla.Restriccion_1);
+    console.log(" - R2:", regla.Restriccion_2);
+    console.log(" - R3:", regla.Restriccion_3);
 
-  const cumple1 = !r1 || texto.includes(r1);   // parcial
-  const cumple2 = !r2 || texto.includes(r2);   // exacta
-  const cumple3 = !r3 || texto.includes(r3);   // exacta
+    /* 2. Validar restricciones */
+    let cumpleR1 = true, cumpleR2 = true, cumpleR3 = true;
 
-  console.log("🔎 Verificando reglas:");
-  console.log(" - Restriccion_1:", r1, "→", cumple1);
-  console.log(" - Restriccion_2:", r2, "→", cumple2);
-  console.log(" - Restriccion_3:", r3, "→", cumple3);
+    if (regla.Restriccion_1) {
+        cumpleR1 = texto.toUpperCase().includes(regla.Restriccion_1.toUpperCase());
+        console.log(`   ▶ R1 (${regla.Restriccion_1}): ${cumpleR1 ? "✔ CUMPLE" : "❌ NO CUMPLE"}`);
+    }
+    if (regla.Restriccion_2) {
+        cumpleR2 = texto.toUpperCase().includes(regla.Restriccion_2.toUpperCase());
+        console.log(`   ▶ R2 (${regla.Restriccion_2}): ${cumpleR2 ? "✔ CUMPLE" : "❌ NO CUMPLE"}`);
+    }
+    if (regla.Restriccion_3) {
+        cumpleR3 = texto.toUpperCase().includes(regla.Restriccion_3.toUpperCase());
+        console.log(`   ▶ R3 (${regla.Restriccion_3}): ${cumpleR3 ? "✔ CUMPLE" : "❌ NO CUMPLE"}`);
+    }
 
-  if (!(cumple1 && cumple2 && cumple3)) {
-    console.log("❌ No cumple todas las restricciones. No se reenvía.");
-    return;
-  }
+    /* 3. Decisión final */
+    if (!(cumpleR1 && cumpleR2 && cumpleR3)) {
+        console.log("❌ MENSAJE NO REENVIADO → FALLA RESTRICCIONES");
+        return;
+    }
 
-  const destino = (regla.Grupo_Destino || "").trim();
-  if (!destino) {
-    console.log("❌ La regla NO tiene grupo destino.");
-    return;
-  }
+    console.log("✔ TODAS LAS RESTRICCIONES SE CUMPLEN");
+    console.log("✔ Se intentará reenviar al grupo destino");
 
-  const chats = await client.getChats();
-  const grupoDestino = chats.find(c => c.name.trim().toUpperCase() === destino.toUpperCase());
+    /* 4. Buscar grupo destino */
+    const chats = await client.getChats();
+    const destino = chats.find(c =>
+        c.isGroup && c.name.trim().toUpperCase() === regla.Grupo_Destino.trim().toUpperCase()
+    );
 
-  if (!grupoDestino) {
-    console.log(`❌ Grupo destino no encontrado: ${destino}`);
-    return;
-  }
+    if (!destino) {
+        console.log("❌ NO SE ENCONTRÓ EL GRUPO DESTINO EN TU WHATSAPP");
+        return;
+    }
 
-  await grupoDestino.sendMessage(`📩 Reenviado desde *${grupoOrigen}*\n\n${msg.body}`);
-  console.log(`✅ Reenvío exitoso: "${grupoOrigen}" → "${destino}"`);
+    /* 5. Reenviar */
+    await destino.sendMessage(`📩 Reenviado desde *${origen}*\n\n${texto}`);
+    console.log("✅ REENVÍO EXITOSO");
+    console.log("======================================\n\n");
 });
 
-// ====================== INICIO ======================
 client.initialize();
