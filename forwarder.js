@@ -5,14 +5,12 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 
 // =========================================
-// LIMPIA Y NORMALIZA TEXTO (Ignora espacios, tabs, saltos y may/min)
-// También corrige "Coordinador:" para que siempre sea igual
+// NORMALIZADOR
 // =========================================
 function normalizar(texto) {
     return String(texto || "")
-        .replace(/\s+/g, " ")           // reduce espacios/tabs múltiples
-        .replace(/:\s+/g, ": ")          // "Coordinador:    X" → "Coordinador: X"
-        .replace(/\s+:/g, ":")           // "Coordinador :" → "Coordinador:"
+        .replace(/\s+/g, " ")        // compacta espacios
+        .replace(/\s*:\s*/g, ":")    // estandariza "COORDINADOR : X" → "COORDINADOR:X"
         .trim()
         .toUpperCase();
 }
@@ -106,15 +104,20 @@ client.on('message', async msg => {
         console.log(`Destino: ${r.Grupo_Destino}`);
         console.log(`R1=${r.Restriccion_1} | R2=${r.Restriccion_2} | R3=${r.Restriccion_3}`);
 
-        let cumple1 = r1 ? texto.includes(r1) : true;
-        let cumple2 = r2 ? texto.includes(r2) : true;
-        let cumple3 = r3 ? texto.includes(r3) : true;
+        // 🔥 INCLUDES MEJORADO (sin importar espacios después de :)
+        const cleanTexto = texto.replace(/:\s*/g, ":");
+        const cleanR1 = r1.replace(/:\s*/g, ":");
+        const cleanR2 = r2.replace(/:\s*/g, ":");
+        const cleanR3 = r3.replace(/:\s*/g, ":");
+
+        let cumple1 = r1 ? cleanTexto.includes(cleanR1) : true;
+        let cumple2 = r2 ? cleanTexto.includes(cleanR2) : true;
+        let cumple3 = r3 ? cleanTexto.includes(cleanR3) : true;
 
         console.log(` ▶ R1: ${cumple1 ? "✔ CUMPLE" : "❌ NO"} (${r.Restriccion_1})`);
         console.log(` ▶ R2: ${cumple2 ? "✔ CUMPLE" : "❌ NO"} (${r.Restriccion_2})`);
         console.log(` ▶ R3: ${cumple3 ? "✔ CUMPLE" : "❌ NO"} (${r.Restriccion_3})`);
 
-        // SI ESTA REGLA CUMPLE TODO → REENVIAR
         if (cumple1 && cumple2 && cumple3) {
             console.log("✔ ESTA REGLA CUMPLE TODO → REENVIAR");
 
@@ -128,9 +131,7 @@ client.on('message', async msg => {
                 return;
             }
 
-            // 🔥 Enviar SOLO el mensaje original, sin encabezado
             await destino.sendMessage(msg.body);
-
             console.log("✅ REENVÍO EXITOSO");
             return;
         }
