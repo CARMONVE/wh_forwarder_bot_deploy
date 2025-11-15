@@ -5,12 +5,14 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 
 // =========================================
-// LIMPIA Y NORMALIZA TEXTO
-// Ignora: espacios, tabs, saltos y may/min
+// LIMPIA Y NORMALIZA TEXTO (Ignora espacios, tabs, saltos y may/min)
+// También corrige "Coordinador:" para que siempre sea igual
 // =========================================
 function normalizar(texto) {
     return String(texto || "")
-        .replace(/\s+/g, " ")      // reduce espacios/tabs múltiples a 1
+        .replace(/\s+/g, " ")           // reduce espacios/tabs múltiples
+        .replace(/:\s+/g, ": ")          // "Coordinador:    X" → "Coordinador: X"
+        .replace(/\s+:/g, ":")           // "Coordinador :" → "Coordinador:"
         .trim()
         .toUpperCase();
 }
@@ -95,25 +97,24 @@ client.on('message', async msg => {
     for (let i = 0; i < reglasGrupo.length; i++) {
         const r = reglasGrupo[i];
 
+        const r1 = normalizar(r.Restriccion_1);
+        const r2 = normalizar(r.Restriccion_2);
+        const r3 = normalizar(r.Restriccion_3);
+
         console.log("\n--------------------------------------");
         console.log(`🔎 PROBANDO REGLA FILA ${i + 2}`);
         console.log(`Destino: ${r.Grupo_Destino}`);
         console.log(`R1=${r.Restriccion_1} | R2=${r.Restriccion_2} | R3=${r.Restriccion_3}`);
 
-        let cumple1 = true, cumple2 = true, cumple3 = true;
-
-        if (r.Restriccion_1)
-            cumple1 = texto.includes(normalizar(r.Restriccion_1));
-        if (r.Restriccion_2)
-            cumple2 = texto.includes(normalizar(r.Restriccion_2));
-        if (r.Restriccion_3)
-            cumple3 = texto.includes(normalizar(r.Restriccion_3));
+        let cumple1 = r1 ? texto.includes(r1) : true;
+        let cumple2 = r2 ? texto.includes(r2) : true;
+        let cumple3 = r3 ? texto.includes(r3) : true;
 
         console.log(` ▶ R1: ${cumple1 ? "✔ CUMPLE" : "❌ NO"} (${r.Restriccion_1})`);
         console.log(` ▶ R2: ${cumple2 ? "✔ CUMPLE" : "❌ NO"} (${r.Restriccion_2})`);
         console.log(` ▶ R3: ${cumple3 ? "✔ CUMPLE" : "❌ NO"} (${r.Restriccion_3})`);
 
-        // SI ESTA REGLA CUMPLE TODO → REENVIAR Y SALIR
+        // SI ESTA REGLA CUMPLE TODO → REENVIAR
         if (cumple1 && cumple2 && cumple3) {
             console.log("✔ ESTA REGLA CUMPLE TODO → REENVIAR");
 
@@ -127,16 +128,17 @@ client.on('message', async msg => {
                 return;
             }
 
-            await destino.sendMessage(`📩 Reenviado desde *${chat.name}*\n\n${msg.body}`);
+            // 🔥 Enviar SOLO el mensaje original, sin encabezado
+            await destino.sendMessage(msg.body);
+
             console.log("✅ REENVÍO EXITOSO");
-            return; // terminamos aquí
+            return;
         }
 
         console.log("❌ Esta regla no cumplió todas las restricciones.");
     }
 
-    // SI LLEGAMOS AQUÍ → ninguna regla cumplió
-    console.log("❌ NINGUNA DE LAS REGLAS DE ESTE GRUPO CUMPLIÓ LAS RESTRICCIONES");
+    console.log("❌ NINGUNA REGLA CUMPLIÓ LAS RESTRICCIONES");
 });
 
 client.initialize();
